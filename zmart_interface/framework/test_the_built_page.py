@@ -109,3 +109,37 @@ def test_building_twice_gives_the_committed_page(tmp_path):
         "the committed page is not what the build makes: run `npm run build` and commit "
         "examples/built-page"
     )
+
+
+@pytest.mark.skipif(
+    _npm() is None or not (CHECKOUT / "node_modules" / "vite").is_dir(),
+    reason="needs Node.js, and `npm ci` run in this checkout",
+)
+def test_the_page_is_the_same_wherever_the_workflows_folder_is(tmp_path):
+    """A folder of workflows builds the same page wherever it sits on the disk.
+
+    A repository of workflows commits its page and checks it against a fresh
+    build, made from wherever this checkout happens to be beside it. A page that
+    held the way from this checkout to the workflows would differ with every
+    layout, so the check could pass on one computer only.
+    """
+    elsewhere = tmp_path / "somewhere" / "else" / "workflows"
+    shutil.copytree(CHECKOUT / "examples", elsewhere,
+                    ignore=shutil.ignore_patterns("built-page", "__pycache__"))
+    built = []
+    for folder in (None, elsewhere):
+        out = tmp_path / ("here" if folder is None else "there")
+        setting = {} if folder is None else {"ZMART_INTERFACE_WORKFLOWS": str(folder)}
+        finished = subprocess.run(
+            f'"{_npm()}" run build -- --outDir "{out}" --emptyOutDir',
+            cwd=CHECKOUT,
+            shell=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "NO_COLOR": "1", "PYTHON": sys.executable, **setting},
+        )
+        assert finished.returncode == 0, finished.stdout + finished.stderr
+        built.append(_digest(out))
+    assert built[0] == built[1], "the page differs with where the folder of workflows is"

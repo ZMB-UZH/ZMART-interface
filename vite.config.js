@@ -8,7 +8,7 @@ import {
 import { theViewersDrawingFolder } from "./tools/the-installed-viewer.mjs";
 import { theWorkflowsFitTheApi } from "./tools/the-workflows-fit.mjs";
 import {
-  BUILT_PAGE, THE_API, theWorkflowNames, theWorkflowsAddress, theWorkflowsFolder,
+  BUILT_PAGE, THE_API, theWorkflowNames, theWorkflowsAddress, theWorkflowsFolder, theWorkflowsList,
 } from "./tools/the-workflows-folder.mjs";
 
 const here = import.meta.dirname;
@@ -106,6 +106,9 @@ export default defineConfig({
     /* In the development server, `/@zmart-workflows/...` is the folder of
        workflows, wherever it is; the browser tests load modules by it. */
     theWorkflowsAddress(theWorkflows),
+    /* The page's list of the workflows, by folder name only, so the page is
+       the same wherever the folder of workflows sits. */
+    theWorkflowsList(theWorkflows),
     placeTheUnpackingProgram,
     dropTheSignInPagesWeDoNotUse,
     /* The single-file plugin normally sets a handful of build options for you,

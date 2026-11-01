@@ -93,6 +93,44 @@ export function theWorkflowsAddress(folder) {
   };
 }
 
+/** The module the page reads its workflows from (`theWorkflowsList`). */
+export const THE_WORKFLOWS_LIST = "zmart-interface/the-workflows-list";
+
+/**
+ * The workflows in the folder, as one module the page imports: every folder
+ * in it with a `flow.js` or `flow.ts`, each imported by `@zmart-workflows/` and
+ * listed under `<folder>/flow.ts`.
+ *
+ * The build tool's own folder scan, `import.meta.glob`, would list each flow
+ * under its path from this repository, which is written into the page. A
+ * folder of workflows in another repository would then build a different page
+ * on every computer where the two checkouts sit differently, and the page that
+ * repository commits could be checked on one layout only. Listed here, the page
+ * holds the folder names and nothing of where they are.
+ *
+ * The list is read when the build, the development server or the unit tests
+ * start; a workflow folder added later needs the development server restarted.
+ */
+export function theWorkflowsList(folder) {
+  const resolved = `\0${THE_WORKFLOWS_LIST}`;
+  return {
+    name: "zmart:the-workflows-list",
+    resolveId: (name) => (name === THE_WORKFLOWS_LIST ? resolved : undefined),
+    load(id) {
+      if (id !== resolved) return undefined;
+      const flows = fs.readdirSync(folder, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .flatMap((entry) => ["flow.ts", "flow.js"]
+          .filter((file) => fs.existsSync(path.join(folder, entry.name, file)))
+          .map((file) => `${entry.name}/${file}`))
+        .sort();
+      const imports = flows.map((flow, number) => `import * as flow${number} from "${WORKFLOWS_ALIAS}/${flow}";`);
+      const listed = flows.map((flow, number) => `  ${JSON.stringify(flow)}: flow${number},`);
+      return [...imports, "export default {", ...listed, "};", ""].join("\n");
+    },
+  };
+}
+
 /**
  * The names a workflow's code is resolved by, for the build and the unit tests
  * alike: the folder of workflows, and the workflow API.

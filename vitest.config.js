@@ -1,6 +1,6 @@
 import path from "node:path";
 import { defineConfig } from "vitest/config";
-import { theWorkflowNames, theWorkflowsFolder } from "./tools/the-workflows-folder.mjs";
+import { theWorkflowNames, theWorkflowsFolder, theWorkflowsList } from "./tools/the-workflows-folder.mjs";
 
 /* Every test stands beside what it tests — a part's in the part, a step's in
    the step — so there is no tests folder to point at. What separates the two
@@ -15,6 +15,7 @@ import { theWorkflowNames, theWorkflowsFolder } from "./tools/the-workflows-fold
 const theWorkflows = theWorkflowsFolder();
 
 export default defineConfig({
+  plugins: [theWorkflowsList(theWorkflows)],
   resolve: { alias: theWorkflowNames(theWorkflows) },
   /* The folder of workflows may sit outside this repository; its tests are
      found there and run here, with the same names resolved. */
