@@ -76,6 +76,40 @@ Read these before you design anything, from a checkout of ZMART-interface:
    page is built, and how it is run.
 7. `docs/principles.md`: how code is written in this project.
 
+## The tools are decided: do not choose others
+
+A workflow is built with the tools the ZMART interface already uses. They are
+listed in the interface's `package.json` and installed by `npm ci` in its
+checkout. A workflow adds no build tool, test runner or framework of its own,
+so every workflow is built, checked and tested the same way, and nobody has to
+learn a second set of tools.
+
+| What | Tool | What it does for a workflow |
+|---|---|---|
+| The language of the page | **TypeScript**, strict (`tsconfig.json`) | every `.ts` file of the workflow is type-checked: `npm run check:types` |
+| The development server and the build | **Vite** (`vite.config.js`) | `npm run dev` serves the page and reloads it as files are saved; `npm run build` writes the finished page into `built-page/` |
+| Compiling the page's background programs | **esbuild** | used by the interface's own tools (`tools/neuroglancer-workers.mjs`) as part of the build; a workflow does not call it itself |
+| Unit tests | **Vitest** | the `*.test.ts` files beside the code: `npx vitest run` |
+| Browser tests and the walk | **Playwright** | the `*.spec.ts` files: they open the page in Chromium and press through it, on a pretend backend or a mock microscope: `npx playwright test` |
+| The import rules | **dependency-cruiser** | `npm run check:imports` refuses an import a workflow may not make |
+| Nothing left unused | **knip** | `npm run check:unused` |
+| The Python half | **Python** and **pytest** | the `test_*.py` files beside it |
+
+What this means in practice:
+
+- **No UI framework.** The page is plain TypeScript working on the page's
+  elements (the DOM), with the helpers the API offers (`el`, `css`,
+  `sideGroup`, `status`). Do not add React, Vue, Svelte or the like.
+- **No new npm package** without asking. A workflow may use only the packages
+  the interface's `package.json` lists. If one is truly needed, it is a change
+  to the ZMART interface, made and reviewed there.
+- **No other test runner**, no Jest, no Cypress; no other bundler, no
+  webpack, no Parcel.
+- The settings of these tools belong to the interface (`tsconfig.json`,
+  `vite.config.js`, `vitest.config.js`, `playwright.config.js`). A workflow
+  does not bring its own; they already find the workflows in the folder that
+  `ZMART_INTERFACE_WORKFLOWS` names.
+
 ## Step 1: the conversation, before any code
 
 Start by understanding the experiment. Ask, a few questions at a time, and
