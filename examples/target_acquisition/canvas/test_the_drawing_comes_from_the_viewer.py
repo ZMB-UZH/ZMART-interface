@@ -12,18 +12,33 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
 import zmart_viewer
 
-CHECKOUT = Path(__file__).resolve().parents[3]
+import zmart_interface
+
+#: The checkout of the ZMART interface whose build makes the page: where the
+#: installed interface was installed from (``pip install -e``). Its build tools
+#: are checked here. This workflow may sit in another repository, so the
+#: checkout is found through the interface, not beside this file.
+CHECKOUT = Path(zmart_interface.__file__).resolve().parents[1]
 #: The viewer's declarations of its drawing code, as committed here for the type checker.
 DECLARATIONS = Path(__file__).resolve().parent / "engines" / "zmart-viewer-drawing"
 #: The neuroglancer engine, written in JavaScript or, once converted, TypeScript.
 ENGINE = next(
-    path for path in (CHECKOUT / "examples/target_acquisition/canvas/engines/neuroglancer-under").glob("viewer.*")
+    path for path in (Path(__file__).resolve().parent / "engines" / "neuroglancer-under").glob("viewer.*")
     if path.suffix in (".js", ".ts")
 )
 
+#: The checks of the build's own files need the interface's checkout, which an
+#: interface installed from GitHub does not have.
+needs_the_checkout = pytest.mark.skipif(
+    not (CHECKOUT / "tools" / "the-installed-viewer.mjs").is_file(),
+    reason="the ZMART interface is installed as a package here, not from a checkout",
+)
 
+
+@needs_the_checkout
 def test_the_installed_viewer_offers_what_the_build_reads():
     drawing = Path(zmart_viewer.__file__).parent / "drawing"
     shared = re.search(r"THE_SHARED_DRAWING_FILES = \[(.*?)\];",
@@ -43,6 +58,7 @@ def test_the_engine_keeps_no_shader_program_of_its_own():
     ), "a shader program is written out here again; take it from the viewer's programs.js"
 
 
+@needs_the_checkout
 def test_the_patch_keeps_only_what_the_viewer_does_not_offer():
     patch = (CHECKOUT / "patches/neuroglancer+2.41.2.patch").read_text(encoding="utf-8")
     changed = [line.split(" b/", 1)[1] for line in patch.splitlines() if line.startswith("diff --git ")]
@@ -50,6 +66,7 @@ def test_the_patch_keeps_only_what_the_viewer_does_not_offer():
     assert "transparentBackground" not in patch
 
 
+@needs_the_checkout
 def test_the_installed_viewer_is_the_pinned_one():
     """The page is built with the viewer release ``pyproject.toml`` names, and no other.
 
