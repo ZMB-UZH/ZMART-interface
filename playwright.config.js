@@ -1,6 +1,13 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { defineConfig } from "@playwright/test";
+import { letTheWorkflowsReachThePackages, theWorkflowsFolder } from "./tools/the-workflows-folder.mjs";
+
+/* The folder of workflows whose browser tests run: `examples/`, or the one
+   `ZMART_INTERFACE_WORKFLOWS` names. Its specs import `@playwright/test`, which
+   Node finds through a `node_modules` beside them (see the tool). */
+const theWorkflows = theWorkflowsFolder();
+letTheWorkflowsReachThePackages(theWorkflows);
 
 /* Where the browsers are is the machine's business: Playwright reads
    `PLAYWRIGHT_BROWSERS_PATH` itself. On a computer where programs may only run
@@ -61,10 +68,12 @@ const theChromiumToUse = findAChromium();
 const testPort = Number(process.env.ZMART_TEST_PORT || 5174);
 
 export default defineConfig({
-  /* The walks stand beside what they walk, so the whole package is the
-     search. A `.test.js` belongs to vitest; the two runners share folders. */
-  testDir: "zmart_interface",
-  testIgnore: ["**/node_modules/**", "**/test-results/**"],
+  /* The walks stand beside what they walk, in each workflow's folder, so the
+     whole folder of workflows is the search: `examples/` here, or the folder
+     `ZMART_INTERFACE_WORKFLOWS` names. A `.test.js` belongs to vitest; the two
+     runners share folders. */
+  testDir: theWorkflows,
+  testIgnore: ["**/node_modules/**", "**/test-results/**", "**/built-page/**"],
   testMatch: "**/*.spec.{js,ts}",
   /* Screenshots and traces of a failed test. `ZMART_TEST_OUTPUT` puts them on
      another disk when this one is short of room. */

@@ -27,12 +27,16 @@
       // The build takes the code from the installed viewer (`vite.config.js`);
       // the checker reads this committed copy, which a Python test holds equal
       // to the installed viewer's (`test_the_drawing_comes_from_the_viewer.py`).
-      "zmart-viewer/drawing/*": ["./zmart_interface/workflows/target_acquisition/canvas/engines/zmart-viewer-drawing/*"],
+      "zmart-viewer/drawing/*": ["./examples/target_acquisition/canvas/engines/zmart-viewer-drawing/*"],
+      "zmart-interface/api": ["./zmart_interface/api/index.ts"],
+      "zmart-interface/framework/*": ["./zmart_interface/framework/*"],
+      "@zmart-workflows/*": ["./examples/*"],
       // The page's own addresses, as the dev server serves them: the specs import
       // modules into the browser by these.
-      "/zmart_interface/*": ["./zmart_interface/*"]
+      "/zmart_interface/*": ["./zmart_interface/*"],
+      "/@zmart-workflows/*": ["./examples/*"]
     }
   },
-  "include": ["zmart_interface", "tools"],
-  "exclude": ["zmart_interface/build", "node_modules"]
+  "include": ["zmart_interface", "examples", "tools"],
+  "exclude": ["examples/built-page", "node_modules"]
 }

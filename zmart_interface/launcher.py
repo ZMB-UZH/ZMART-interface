@@ -9,8 +9,12 @@ and points one at the other::
     zmart-interface --dev           # the development server's page, edits reload live
 
 By default the bridge serves the page and the instrument on one address, which
-is exactly how it runs on the microscope PC. The page comes with the package,
-already built, so nothing has to be built on the microscope.
+is exactly how it runs on the microscope PC. The interface brings no workflow
+of its own: it runs the workflows in the folder ``ZMART_INTERFACE_WORKFLOWS``
+names (in a checkout of this repository, its ``examples/``), and serves the
+page built from them, which sits in that folder as ``built-page/``. The page is
+built once, on a computer with Node.js, and committed beside the workflows, so
+nothing has to be built on the microscope.
 
 ``--dev`` is for working on the page itself: the Vite development server
 (``npm run dev``, in a checkout of this repository) holds the page so edits
@@ -41,13 +45,6 @@ import sys
 import urllib.error
 import urllib.request
 
-from zmart_interface.framework.bridge import THE_PAGE
-
-#: What ``npm run build`` leaves, and the package carries: the page and
-#: neuroglancer's two background programs beside it. The bridge hands them out,
-#: so where they are is the bridge's to say.
-BUILT = THE_PAGE / "index.html"
-
 #: Where ``npm run dev`` serves the page while it is being worked on.
 DEV_URL = "http://127.0.0.1:5174/"
 
@@ -68,15 +65,25 @@ def main(argv: list[str] | None = None) -> int:
         "--dev", nargs="?", const=DEV_URL, default=None, metavar="URL",
         help=f"open the development server's page instead of the built one (default {DEV_URL})",
     )
-    halves = workflows.load_halves(server.add_route)
+    try:
+        halves = workflows.load_halves(server.add_route)
+    except workflows.NoWorkflows as why:
+        print(why)
+        return 1
     server.add_arguments(parser, halves)
     args = parser.parse_args(argv)
+    # What ``npm run build`` leaves in the folder of workflows: the page and
+    # neuroglancer's two background programs beside it. The bridge hands them
+    # out, so where they are is the bridge's to say.
+    built = server.THE_PAGE / "index.html"
 
     if args.dev and not _dev_server_is_up(args.dev):
         print(f"nothing answering at {args.dev} — start it with `npm run dev`, or leave out --dev")
         return 1
-    if not args.dev and not BUILT.exists():
-        print(f"no built page at {BUILT} — run `npm run build` in the repository first")
+    if not args.dev and not built.exists():
+        print(f"no built page at {built} — build it from these workflows with "
+              f"`npm run build` in a checkout of ZMART-interface, with {workflows.SETTING} "
+              "set to their folder")
         return 1
 
     try:

@@ -34,8 +34,10 @@ from pathlib import Path
 from . import workflows
 from .api import Bytes, Refusal
 
-#: Where ``npm run build`` leaves the page: ``zmart_interface/build``.
-THE_PAGE = Path(__file__).resolve().parents[2] / "build"
+#: Where the page is that ``npm run build`` built from the folder of workflows:
+#: its ``built-page/`` (``examples/built-page`` in a checkout of this
+#: repository). None when there is no folder of workflows to run.
+THE_PAGE: Path | None = workflows.WORKFLOWS / workflows.BUILT_PAGE if workflows.WORKFLOWS else None
 
 #: The routes, by method and path: what answers ``GET /api/instruments`` is
 #: ``ROUTES[("GET", "/api/instruments")]``.
@@ -180,6 +182,10 @@ class Bridge(BaseHTTPRequestHandler):
         the bridge at its own origin and needs telling only in development,
         where a dev server holds the page instead so that edits reload live.
         """
+        if THE_PAGE is None:
+            self._answer({"error": f"no page at {path}: there is no folder of workflows "
+                                   f"({workflows.SETTING} is not set)"}, status=404)
+            return
         name = path.lstrip("/") or "index.html"
         where = (THE_PAGE / name).resolve()
         wanted = self.PAGE.get(where.suffix)

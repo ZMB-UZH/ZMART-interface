@@ -1,7 +1,7 @@
 __pycache__/
 *.egg-info/
 # What setuptools leaves at the top of the checkout while it makes a wheel. Only
-# the top-level folder: the built page in zmart_interface/build/ is committed.
+# the top-level folder: a workflows folder's built-page/ is committed.
 /build/
 dist/
 .pytest_cache/
@@ -15,5 +15,5 @@ playwright-report/
 # A run the mock microscope writes when it is given nowhere else to write
 mock-output/
 
-# The built page lives in zmart_interface/build/ and IS
-# committed: the microscope PC cannot build it.
+# A built page lives in its workflows folder's built-page/ (here,
+# examples/built-page/) and IS committed: the microscope PC cannot build it.

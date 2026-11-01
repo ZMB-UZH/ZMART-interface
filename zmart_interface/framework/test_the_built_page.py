@@ -1,7 +1,9 @@
 """The built page: what is committed is what the build makes, every time.
 
-The page the bridge hands out lives in ``zmart_interface/build`` and is committed, so a
-microscope PC can install the interface without Node.js. That only holds if
+The page the bridge hands out is built from a folder of workflows and lives
+inside it, as ``built-page/``. Here that is the example's page,
+``examples/built-page``, and it is committed, so the interface's own tests and
+a microscope PC can run it without Node.js. That only holds if
 the committed files are exactly what ``npm run build`` makes from the sources
 beside them: a change to the page that was never rebuilt, or a build that
 comes out differently each time, would ship a page nobody has tested.
@@ -105,5 +107,5 @@ def test_building_twice_gives_the_committed_page(tmp_path):
     assert built[0] == built[1], "two builds of the same sources differ"
     assert built[0] == _digest(THE_PAGE), (
         "the committed page is not what the build makes: run `npm run build` and commit "
-        "zmart_interface/build"
+        "examples/built-page"
     )

@@ -32,7 +32,7 @@ import { DEFAULT_WORKFLOW, WORKFLOWS } from "./the-workflows.ts";
 const search = new URLSearchParams(location.search);
 const asked = search.get("workflow");
 const opensOn = asked && WORKFLOWS[asked] ? asked : DEFAULT_WORKFLOW;
-if (!opensOn) throw new Error("the page was built with no workflow in zmart_interface/workflows/");
+if (!opensOn) throw new Error("the page was built with no workflow in its folder of workflows (ZMART_INTERFACE_WORKFLOWS)");
 
 const pages = composeThePages({ WORKFLOWS, opensOn, search });
 

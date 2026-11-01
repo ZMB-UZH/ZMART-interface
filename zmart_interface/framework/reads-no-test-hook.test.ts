@@ -7,7 +7,8 @@
  * reader without a word from the type checker or the import rules.
  * `docs/principles.md` says so; this test holds it.
  *
- * It reads every page file under `zmart_interface/` (not the tests, which are
+ * It reads every page file under `zmart_interface/` and the example workflows
+ * in `examples/` (not the tests, which are
  * what the hooks are for, and not the build), finds which module sets each
  * hook, and refuses any other module that names it. Comments are left out:
  * a comment may say where a test looks. */
@@ -18,10 +19,11 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PACKAGE = join(dirname(fileURLToPath(import.meta.url)), "..");
+const THE_EXAMPLES = join(PACKAGE, "..", "examples");
 
 const pageFiles = (folder: string): string[] => readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
   const at = join(folder, entry.name);
-  if (entry.isDirectory()) return ["node_modules", "build", "__pycache__"].includes(entry.name) ? [] : pageFiles(at);
+  if (entry.isDirectory()) return ["node_modules", "build", "built-page", "__pycache__"].includes(entry.name) ? [] : pageFiles(at);
   return /\.ts$/.test(entry.name) && !/\.(test|spec)\.ts$/.test(entry.name) ? [at] : [];
 });
 
@@ -36,7 +38,7 @@ const HOOK = /window\.(__[A-Za-z]+)/g;
 const SET = /window\.(__[A-Za-z]+)\s*=(?!=)/g;
 
 describe("the page's own code reads no test hook", () => {
-  const files = pageFiles(PACKAGE).map((file) => ({ file, code: codeOf(file) }));
+  const files = [...pageFiles(PACKAGE), ...pageFiles(THE_EXAMPLES)].map((file) => ({ file, code: codeOf(file) }));
   const owners = new Map<string, Set<string>>();
   for (const { file, code } of files) {
     for (const [, hook] of code.matchAll(SET)) {

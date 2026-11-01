@@ -20,8 +20,8 @@
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
-import { sideGroup, staleSteps } from "../../../api/index.ts";
-import type { Flow, Hooks, Page, Panel, Step, WorkflowTypes } from "../../../api/index.ts";
+import { sideGroup, staleSteps } from "zmart-interface/api";
+import type { Flow, Hooks, Page, Panel, Step, WorkflowTypes } from "zmart-interface/api";
 
 /** What a run of this workflow holds beside the framework's keys. */
 interface CountState {

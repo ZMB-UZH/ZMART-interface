@@ -1,5 +1,8 @@
 /**
- * The workflows this page offers: every folder in `workflows/` with a
+ * The workflows this page offers: every folder in the folder of workflows
+ * the page is built from (`@zmart-workflows`, which the build maps onto the
+ * folder `ZMART_INTERFACE_WORKFLOWS` names, or onto `examples/`; see
+ * `tools/the-workflows-folder.mjs`) with a
  * `flow.js` or `flow.ts` inside it, found by the build tool's folder scan and assembled by
  * the framework. The unit tests read the same folders, so a workflow the tests
  * can see is a workflow the operator can choose. The list used to be written
@@ -14,5 +17,5 @@
 import { assembleWorkflows } from "../rules/finding-workflows.ts";
 
 export const { WORKFLOWS, DEFAULT_WORKFLOW } = assembleWorkflows(
-  import.meta.glob("../../workflows/*/flow.{js,ts}", { eager: true }),
+  import.meta.glob("@zmart-workflows/*/flow.{js,ts}", { eager: true }),
 );

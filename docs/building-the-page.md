@@ -1,13 +1,17 @@
 # Building the page
 
-The operator page is written in strict TypeScript under `zmart_interface/` and
-built with Vite into three files that ship inside the Python package. Node 22.12 or
+The operator page is written in strict TypeScript: the frame under
+`zmart_interface/`, and the workflows in a folder of workflows of their own
+(`examples/` in this repository; see `docs/running-your-own-workflows.md`). It is
+built with Vite into three files, which are written into that folder of
+workflows as `built-page/` and committed there. Node 22.12 or
 newer is needed for the build, on a developer machine; the microscope PC never
 builds anything.
 
 ```bash
 npm ci            # the page's packages, and neuroglancer's patch
-npm run build     # the page and two files beside it -> zmart_interface/build/
+npm run build     # the page and two files beside it -> examples/built-page/
+ZMART_INTERFACE_WORKFLOWS=/path/to/my_workflows npm run build   # -> /path/to/my_workflows/built-page/
 npm run dev       # http://127.0.0.1:5174, reloads on save; open it with `zmart-interface --dev`
 ```
 
@@ -52,7 +56,8 @@ new version, too.
 
 ## What the build produces, and why it is three files rather than one
 
-`npm run build` writes three files into `zmart_interface/build/`:
+`npm run build` writes three files into `built-page/` in the folder of
+workflows it built from (`examples/built-page/` here):
 
 | file | what it is | how large |
 | --- | --- | --- |
@@ -110,7 +115,7 @@ of the reasons for one file were about the copying: the microscope PC still does
 not build anything, the files still arrive already built, and Python still hands
 them out. A folder copies as easily as a file so long as it is copied *whole* —
 which is the one new way to get this wrong, and why the build produces exactly
-three files and `zmart_interface/workflows/target_acquisition/the-built-page.spec.ts` says so out loud.
+three files and `examples/target_acquisition/the-built-page.spec.ts` says so out loud.
 
 **Opened straight off the disk — a `file:///…` address, which double-clicking
 the page does — the picture cannot be drawn.** A browser gives such a page no
@@ -119,11 +124,12 @@ neuroglancer never starts. Serve the folder over HTTP and it does; the
 `zmart-interface` window does exactly that, which is also how the page is
 really handed out.
 
-`build.outDir` points at `zmart_interface/build/`: everything else in the
-repository is source, and that folder is what the window opens. The built files are committed and ship in the package,
-because the microscope PC cannot build them; rebuild and commit them after any
-change to the page's sources. Only the built page goes into the package: the
-TypeScript sources and every test stay in the repository.
+`build.outDir` points at `built-page/` in the folder of workflows: everything
+else is source, and that folder is what the window opens. The built files are
+committed beside the workflows they were built from, because the microscope PC
+cannot build them; rebuild and commit them after any change to the page's
+sources or to the workflows. Nothing of the page goes into the Python package:
+the interface installs as the framework alone.
 
 `zmart_interface/framework/test_the_built_page.py` holds the two to each other.
 It builds the page twice into a temporary folder and fails unless both builds

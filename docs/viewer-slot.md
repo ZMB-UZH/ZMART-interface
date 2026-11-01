@@ -1,11 +1,11 @@
 # The viewer slot
 
-The canvas the operator pans and zooms has its own surface (`workflows/target_acquisition/canvas/surface.ts`): the
+The canvas the operator pans and zooms has its own surface (`examples/target_acquisition/canvas/surface.ts`): the
 view, the two gestures, a drawing surface beneath and one above, and a **middle slot** between
 them. The picture of the run sits in that slot, drawn by a **drawing engine**. This page says
 what an engine has to offer to fill it.
 
-One engine fills the slot: `neuroglancer-under`, in `zmart_interface/workflows/target_acquisition/canvas/engines/`,
+One engine fills the slot: `neuroglancer-under`, in `examples/target_acquisition/canvas/engines/`,
 which draws the run's OME-Zarr images, served by ZMART-viewer, with neuroglancer. "Under"
 names the arrangement: the picture lies **underneath** the operator's own drawing (the
 carrier, the scan fields, the focus points, the targets), which the canvas draws above it.
@@ -66,7 +66,7 @@ page can hold two at once.
 
 ## How the picture is opened
 
-`zmart_interface/workflows/target_acquisition/canvas/engines.ts` loads the engine by name (`openerFor`), only when it
+`examples/target_acquisition/canvas/engines.ts` loads the engine by name (`openerFor`), only when it
 is first needed. Target acquisition opens the run's picture inside the canvas's middle slot
 once the run has sources to draw (`steps/scan_the_overview/watching-the-run.ts`). An engine
 that is asked for and cannot be opened is said in words, never replaced in silence: a picture

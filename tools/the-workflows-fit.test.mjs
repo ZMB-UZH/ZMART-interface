@@ -50,10 +50,10 @@ describe("whether the workflows fit the API", () => {
     expect(workflowsThatDoNotFit("0.1.0", root)).toEqual([]);
   });
 
-  it("finds every workflow of the interface, and its own fixture, fitting", () => {
+  it("finds the example workflows, and the framework's own fixture, fitting", () => {
     const api = path.join(here, "..", "zmart_interface", "api");
     const version = theApiVersion(api);
-    expect(workflowsThatDoNotFit(version, path.join(here, "..", "zmart_interface", "workflows"))).toEqual([]);
+    expect(workflowsThatDoNotFit(version, path.join(here, "..", "examples"))).toEqual([]);
     expect(workflowsThatDoNotFit(version, path.join(here, "..", "zmart_interface", "framework", "fixtures"))).toEqual([]);
   });
 });

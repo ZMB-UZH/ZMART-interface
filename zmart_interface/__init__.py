@@ -13,17 +13,19 @@ What is where:
   which the page reaches each workflow's Python half.
 - ``parts/``: what more than one workflow is built from. Empty today: a part
   arrives here when a second workflow needs it (``parts/README.md``).
-- ``workflows/``: one folder per workflow, all built into the page;
-  ``target_acquisition`` today, with everything it asks of a microscope --
-  its Python half, the mock microscope, the storage of what a run captures
-  and the analysis. A workflow written in another repository is dropped into
-  this folder and the page is built again (``docs/dropping-a-workflow-in.md``).
+The interface brings no workflow of its own. The workflows it runs live in a
+folder of workflows outside the package, named by the environment variable
+``ZMART_INTERFACE_WORKFLOWS``, and the page is built from that folder and kept
+in it (``docs/running-your-own-workflows.md``). The workflows we run at the ZMB
+are in ZMART Microscopy. This repository's own example, Target acquisition,
+is in ``examples/`` beside the package: the interface's tests run on it, and it
+is not installed.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 """
 
-__version__ = "0.1.0rc10"
+__version__ = "0.2.0rc1"
 __author__ = "Thom de Hoog"
 __email__ = "thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com"
 __affiliation__ = "Center for Microscopy and Image Analysis (ZMB), University of Zurich"

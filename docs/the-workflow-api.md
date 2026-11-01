@@ -1,7 +1,7 @@
 # The workflow API
 
 The agreement between a workflow and the interface that runs it. A workflow is
-a folder under `zmart_interface/workflows/`; this page says what it may use of
+a folder in a folder of workflows (`examples/` here; see `docs/running-your-own-workflows.md`); this page says what it may use of
 the interface, what it declares for the interface to run it, and when the
 interface calls what it declares. The types are in `zmart_interface/api/index.ts`;
 this page is their explanation.
@@ -80,7 +80,7 @@ Two checks hold the API to its version:
 | `forTests(run)` | what a browser test may read of them |
 
 A step's fields, a panel's, a channel's and the hooks are written out in
-`zmart_interface/workflows/README.md` and typed in `api/index.ts`
+`examples/README.md` and typed in `api/index.ts`
 (`Step`, `Panel`, `Channel`, `Hooks`).
 
 `WorkflowTypes` is one bag a workflow fills in -- its `state`, `backend`,

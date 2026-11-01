@@ -28,14 +28,26 @@ The ZMART interface provides a unified interactive framework and playground that
 <br>
 
 ## Status
-This is a release candidate, 0.1.0rc10. We are currently are in the process of testing it on the Leica Stellaris
+This is a release candidate, 0.2.0rc1. We are currently in the process of testing it on the Leica Stellaris.
+
+## A framework, and the workflows you run in it
+The interface is a framework: installing it gives you the operator window and
+the bridge to the microscope, but no workflow. The workflows it runs, and the
+page built from them, live in a folder of workflows that you name with the
+setting `ZMART_INTERFACE_WORKFLOWS`. The workflows we run at the ZMB live in
+[ZMART Microscopy](https://github.com/ZMB-UZH/ZMART-microscopy).
+
+This repository keeps one complete example, *Target acquisition*, in
+[`examples/`](examples). The interface's own tests run on it, and it is the
+place to start when you write a workflow. It is not installed with the
+interface.
 
 ## Try it yourself
 Install it and test it:
 
 - [Install and run the interface with its dependencies](docs/install-on-a-microscope.md)
-- [The target acquisition workflow](zmart_interface/workflows/target_acquisition)
-- [Write a new workflow](docs/dropping-a-workflow-in.md)
+- [The example workflow, Target acquisition](examples/target_acquisition)
+- [Run your own workflows, or write a new one](docs/running-your-own-workflows.md)
 - [The workflow API a workflow is written against](docs/the-workflow-api.md)
 - [How the interface is put together](docs/architecture.md)
 

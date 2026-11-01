@@ -1,7 +1,7 @@
 {
   "name": "zmart-interface",
   "private": true,
-  "version": "0.1.0-rc.10",
+  "version": "0.2.0-rc.1",
   "type": "module",
   "description": "The ZMART interface's operator page: built to one self-contained page, with neuroglancer's two background programs beside it, and shipped inside the Python package.",
   "license": "MIT",
@@ -18,7 +18,7 @@
     "test:unit": "vitest run",
     "test:ui": "playwright test",
     "check:types": "tsc --noEmit",
-    "check:imports": "depcruise zmart_interface tools --config .dependency-cruiser.cjs",
+    "check:imports": "depcruise zmart_interface examples tools --config .dependency-cruiser.cjs",
     "check:unused": "knip",
     "check:api": "node tools/the-api-report.mjs --check",
     "test": "tsc --noEmit && vitest run && playwright test"

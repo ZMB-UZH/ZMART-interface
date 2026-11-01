@@ -60,12 +60,12 @@ its microscope seam, its storage and its analysis all live in its folder.
 **Workflows share nothing.** A workflow imports its own files, the workflow
 API and the npm packages the interface lists; nothing else. It can be dropped
 into `workflows/` from another repository and built in
-(`docs/dropping-a-workflow-in.md`).
+(`docs/running-your-own-workflows.md`).
 
 A workflow folder, as target acquisition has it:
 
 ```
-workflows/target_acquisition/
+examples/target_acquisition/
   flow.ts          the front door: its steps, a sentence for the chooser, its
                    panels, how it wires itself to the page (`install`), which
                    backend it speaks to (`backendFor`), what a run holds
@@ -244,7 +244,7 @@ export const focusStrategy: TaStep = {
 };
 ```
 
-Every field is written out in `zmart_interface/workflows/README.md`, and in
+Every field is written out in `examples/README.md`, and in
 the API's types. Numbering comes from position; a step may set its own `n`.
 
 A step's controls are its **channel**: the column beside the canvas. A
@@ -264,7 +264,7 @@ something has. There is no held-and-applied edit: two copies of the plan, the
 one on screen and the one the run would use, is the one-owner rule broken in
 the way that fails silently.
 
-## The canvas: `workflows/target_acquisition/canvas/`
+## The canvas: `examples/target_acquisition/canvas/`
 
 ```
   surface.ts       the canvas's own surface: the view, the two gestures, a
@@ -317,7 +317,7 @@ Every commit holds to these; CI runs them.
   (`test_*.py`), Playwright driving the real page (`*.spec.ts`). The
   Playwright tests are a smoke net, not a specification: the page is nearly
   all canvas, and driving it catches what reading the source does not.
-  `workflows/target_acquisition/walk.spec.ts` walks all ten steps on the built
+  `examples/target_acquisition/walk.spec.ts` walks all ten steps on the built
   page through the real bridge. Playwright fails rather than skipping when it
   finds no browser.
 

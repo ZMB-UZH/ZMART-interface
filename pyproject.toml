@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zmart-interface"
-version = "0.1.0rc10"
+version = "0.2.0rc1"
 description = "The ZMART operator window: walk a smart-microscopy run step by step, on any microscope the ZMART Controller drives."
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
@@ -32,7 +32,7 @@ dependencies = [
     "zmart-viewer @ git+https://github.com/ZMB-UZH/ZMART-viewer@v0.5.0rc10",
     # The engine that scores focus and finds objects, each step in its own
     # environment (the zmart_analysis package). Its workflows stay in a
-    # checkout of the repository; see zmart_interface/workflows/target_acquisition/analysis/workflows.py.
+    # checkout of the repository; see examples/target_acquisition/analysis/workflows.py.
     "zmart-analysis @ git+https://github.com/ZMB-UZH/ZMART-analysis@v0.6.0rc7",
     # Reading and writing the OME-Zarr images every capture is kept as.
     "ngio==1.1.0",
@@ -78,23 +78,21 @@ zmart-interface = "zmart_interface.launcher:main"
 include = ["zmart_interface*"]
 namespaces = false
 
-[tool.setuptools.package-data]
-# The built page ships with the package: the microscope PC cannot build it.
-# The page's JavaScript sources, and its tests, stay in the repository; only
-# the build goes. The Python tests beside the code stay behind too; setup.py
-# says how.
-"zmart_interface" = ["build/**/*"]
-# The mock's driver file: what the controller's registry reads to install it.
-"zmart_interface.workflows.target_acquisition.mock_microscope" = ["zmart_controller_plugin/*.json", "zmart_controller_plugin/*.py", "kidney-plane.npz"]
+# The package is the framework alone. It brings no workflow and no built page:
+# a page is built from a folder of workflows, and the built page lives in that
+# folder (see docs/running-your-own-workflows.md). This repository's own example,
+# examples/target_acquisition, is there to test the framework and to learn
+# from, and is not installed. The Python tests beside the code stay behind
+# too; setup.py says how.
 
 [tool.pytest.ini_options]
-testpaths = ["zmart_interface"]
+testpaths = ["zmart_interface", "examples"]
 python_files = ["test_*.py"]
 
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-extend-exclude = ["node_modules", "zmart_interface/build"]
+extend-exclude = ["node_modules", "examples/built-page"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]

@@ -4,13 +4,27 @@
   "entry": [
     "zmart_interface/api/index.ts",
     "zmart_interface/framework/fixtures/*/flow.ts",
+    "examples/*/flow.ts",
     "zmart_interface/**/*.test.{js,ts}",
-    "zmart_interface/**/*.spec.{js,ts}",
     "tools/*.mjs",
-    "vite.config.js"
+    "vite.config.js",
+    "examples/**/*.test.{js,ts}",
+    "examples/**/*.spec.{js,ts}"
   ],
-  "project": ["zmart_interface/**/*.{js,mjs,ts}", "tools/*.mjs", "!zmart_interface/build/**"],
-  "ignoreDependencies": ["zmart-viewer"],
-  "ignore": ["zmart_interface/workflows/*/canvas/engines/zmart-viewer-drawing/**"],
-  "ignoreExportsUsedInFile": { "interface": true, "type": true }
+  "project": [
+    "zmart_interface/**/*.{js,mjs,ts}",
+    "examples/**/*.{js,mjs,ts}",
+    "tools/*.mjs",
+    "!examples/built-page/**"
+  ],
+  "ignoreDependencies": [
+    "zmart-viewer"
+  ],
+  "ignore": [
+    "examples/*/canvas/engines/zmart-viewer-drawing/**"
+  ],
+  "ignoreExportsUsedInFile": {
+    "interface": true,
+    "type": true
+  }
 }

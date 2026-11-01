@@ -12,7 +12,7 @@ import {
 import { assembleWorkflows } from "./finding-workflows.ts";
 
 const { WORKFLOWS } = assembleWorkflows(
-  import.meta.glob("../../workflows/*/flow.{js,ts}", { eager: true }),
+  import.meta.glob("@zmart-workflows/*/flow.{js,ts}", { eager: true }),
 );
 
 describe("numbering is derived, so reordering costs nothing", () => {

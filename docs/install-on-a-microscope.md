@@ -10,11 +10,12 @@ Everything runs from one conda environment on the microscope PC:
 
 | Part | What it is | Where it comes from |
 | --- | --- | --- |
-| The interface | the operator window, its page and its bridge | `ZMB-UZH/ZMART-interface` |
+| The interface | the frame of the operator window, and its bridge | `ZMB-UZH/ZMART-interface` |
+| The workflows | the steps the operator clicks through, and the page built from them | a checkout of `ZMB-UZH/ZMART-microscopy` (`workflows/non-coders/interface`) |
 | The controller | the one vocabulary every microscope is driven with | `ZMB-UZH/ZMART-controller`, installed with the interface |
 | The viewer | the picture server that shows the run as it is written | `ZMB-UZH/ZMART-viewer`, installed with the interface |
 | The analysis engine | runs focus scoring and object detection | `ZMB-UZH/ZMART-analysis`, installed with the interface |
-| The analysis workflows | the pipelines, and the conda environments they run in | a checkout of `ZMB-UZH/ZMART-analysis` |
+| The analysis pipelines | the pipelines, and the conda environments they run in | the workflows' own (in ZMART Microscopy, `workflows/non-coders/analysis`), or, for the example, a checkout of `ZMB-UZH/ZMART-analysis` |
 | The driver | speaks to the microscope's own software | `ZMB-UZH/ZMART-drivers`, with the extra for your microscope |
 
 ## Where things must live
@@ -54,25 +55,44 @@ pip install "zmart-interface[drivers] @ git+https://github.com/ZMB-UZH/ZMART-int
 pip check
 ```
 
-The built page comes inside the package, so nothing is built on the microscope.
+The interface is a framework and brings no workflow, and no page, of its own.
 
-### 3. The analysis workflows
+### 3. The workflows
+
+The steps the operator clicks through come from a folder of workflows, with the
+page already built inside it, so nothing is built on the microscope. For the
+workflows we run at the ZMB, that folder is in ZMART Microscopy:
 
 ```powershell
 cd C:\ProgramData\MinicondaZMB\home\<user>
-git clone -b v0.6.0rc7 https://github.com/ZMB-UZH/ZMART-analysis
-conda env create -f ZMART-analysis\workflows\focus\environments\main.yml
-conda env create -f ZMART-analysis\workflows\object_analysis\environments\classical.yml
-conda env create -f ZMART-analysis\workflows\object_analysis\environments\cellpose.yml   # Robust detection only
-conda env create -f ZMART-analysis\workflows\object_analysis\environments\umap.yml       # the multidimensional plots
+git clone https://github.com/ZMB-UZH/ZMART-microscopy
+setx ZMART_INTERFACE_WORKFLOWS C:\ProgramData\MinicondaZMB\home\<user>\ZMART-microscopy\workflows\non-coders\interface
+```
+
+To try the interface's own example workflow instead, clone ZMART-interface and
+point the setting at its `examples` folder. `docs/running-your-own-workflows.md`
+says how a folder of workflows is laid out and how its page is built.
+
+### 4. The analysis pipelines
+
+```powershell
+cd C:\ProgramData\MinicondaZMB\home\<user>
+git clone -b v0.6.0rc8 https://github.com/ZMB-UZH/ZMART-analysis
+conda env create -f ZMART-analysis\examples\focus\environments\main.yml
+conda env create -f ZMART-analysis\examples\object_analysis\environments\classical.yml
+conda env create -f ZMART-analysis\examples\object_analysis\environments\cellpose.yml   # Robust detection only
+conda env create -f ZMART-analysis\examples\object_analysis\environments\umap.yml       # the multidimensional plots
 setx ZMART_ANALYSIS_WORKFLOWS C:\ProgramData\MinicondaZMB\home\<user>\ZMART-analysis
 ```
 
-(Installing ZMART-analysis from this checkout with `pip install -e` does the same without
-the variable.) Fast detection runs its fields twelve at a time in the classical environment;
+These are the commands for the interface's example workflow, which uses
+ZMART-analysis's example pipelines. A workflow that brings its own pipelines,
+like the ones in ZMART Microscopy, says in its README where they are and how
+their environments are made. (Installing ZMART-analysis from this checkout with
+`pip install -e` does the same without the variable.) Fast detection runs its fields twelve at a time in the classical environment;
 the first press of a session pays the start-up of those workers once.
 
-### 4. The driver
+### 5. The driver
 
 Install the driver's extra (for the Leica: `pip install "zmart-drivers[leica] @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b9"`),
 and do the driver's own setup for this microscope -- its limits, origin and, for the Leica,
@@ -101,7 +121,7 @@ folder is gone. Take it off the list once:
 python -c "import zmart_controller; print(zmart_controller.remove_driver('interface-mock'))"
 ```
 
-### 5. Launch
+### 6. Launch
 
 The vendor's software (LAS X, with the CAM API and the intended jobs set up, on the Leica) must
 be running before the window connects.

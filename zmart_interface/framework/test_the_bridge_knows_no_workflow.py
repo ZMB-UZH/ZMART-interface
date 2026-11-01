@@ -5,7 +5,7 @@ free of workflows. Until October 2026 the bridge's general part opened the
 session, drove the stage, captured and served the pictures, so it imported
 the controller and target acquisition's microscope, storage and analysis.
 They all moved into the workflow's own Python half
-(``zmart_interface/workflows/target_acquisition/bridge``). This test reads
+(now ``examples/target_acquisition/bridge``). This test reads
 the framework's modules and refuses an import of anything of the interface
 outside ``framework/``, and of the controller, however it is written, so the
 tie cannot come back without a red test saying where.

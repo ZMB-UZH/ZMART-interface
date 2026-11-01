@@ -1,6 +1,6 @@
 # The interface's tests on Linux and Windows: the page's types (tsc) and unit tests (vitest),
-# the Python tests (pytest), and a check that the committed page in
-# zmart_interface/build is exactly what `npm run build` makes.
+# the Python tests (pytest), and a check that the committed page of the example
+# workflow, in examples/built-page, is exactly what `npm run build` makes.
 #
 # None of these needs a microscope: they run on the mock. The two Python tests
 # that run an analysis step in its own conda environment skip themselves here,
@@ -142,7 +142,7 @@ jobs:
           PYTHON: python
       - run: >-
           npx playwright test
-          zmart_interface/workflows/target_acquisition/the-built-page.spec.js
-          zmart_interface/workflows/target_acquisition/canvas
+          examples/target_acquisition/the-built-page.spec.ts
+          examples/target_acquisition/canvas
         env:
           PYTHON: python

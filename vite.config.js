@@ -7,10 +7,19 @@ import {
 } from "./tools/neuroglancer-workers.mjs";
 import { theViewersDrawingFolder } from "./tools/the-installed-viewer.mjs";
 import { theWorkflowsFitTheApi } from "./tools/the-workflows-fit.mjs";
+import {
+  BUILT_PAGE, THE_API, theWorkflowNames, theWorkflowsAddress, theWorkflowsFolder,
+} from "./tools/the-workflows-folder.mjs";
 
 const here = import.meta.dirname;
 
-/* Neuroglancer, one of the drawing engines in `zmart_interface/workflows/target_acquisition/canvas/
+/* The folder of workflows this page is built from: the one
+   `ZMART_INTERFACE_WORKFLOWS` names, or this repository's own `examples/`.
+   `tools/the-workflows-folder.mjs` says why, and how a workflow outside this
+   repository imports the API. */
+const theWorkflows = theWorkflowsFolder();
+
+/* Neuroglancer, one of the drawing engines in `examples/target_acquisition/canvas/
    engines/`, offers its insides under names beginning `neuroglancer/unstable/`,
    which are not folder names: its package description maps them onto a folder
    called `lib`. The mapping is written out here, so whatever an engine asks of
@@ -93,10 +102,10 @@ export default defineConfig({
     /* Every workflow names the workflow API versions it works with; one that
        does not fit stops the build, and the development server, with a
        sentence naming it. */
-    theWorkflowsFitTheApi({
-      workflows: path.join(here, "zmart_interface", "workflows"),
-      api: path.join(here, "zmart_interface", "api"),
-    }),
+    theWorkflowsFitTheApi({ workflows: theWorkflows, api: THE_API }),
+    /* In the development server, `/@zmart-workflows/...` is the folder of
+       workflows, wherever it is; the browser tests load modules by it. */
+    theWorkflowsAddress(theWorkflows),
     placeTheUnpackingProgram,
     dropTheSignInPagesWeDoNotUse,
     /* The single-file plugin normally sets a handful of build options for you,
@@ -107,7 +116,10 @@ export default defineConfig({
     viteSingleFile({ useRecommendedBuildConfig: false }),
   ],
   build: {
-    outDir: "zmart_interface/build",
+    /* The built page goes into the folder of workflows it was built from, so
+       the two always travel together: `examples/built-page/` for this
+       repository's example, or `built-page/` in your own workflows folder. */
+    outDir: path.join(theWorkflows, BUILT_PAGE),
     emptyOutDir: true,
     /* Fold everything into the page except neuroglancer's background programs,
        which have to stay files of their own. */
@@ -164,7 +176,12 @@ export default defineConfig({
     exclude: ["neuroglancer"],
   },
   resolve: {
-    alias: [WHERE_NEUROGLANCER_KEEPS_ITS_INSIDES, THE_VIEWERS_DRAWING],
+    alias: [WHERE_NEUROGLANCER_KEEPS_ITS_INSIDES, THE_VIEWERS_DRAWING, ...theWorkflowNames(theWorkflows)],
+    /* A workflow outside this repository imports the page's npm packages too,
+       and from where it sits there is no `node_modules` to find them in. These
+       are taken from this repository's own copy, wherever the importing file
+       is, so the page always holds one copy of each. */
+    dedupe: ["@vivjs/loaders", "neuroglancer"],
   },
   server: {
     host: "127.0.0.1",
@@ -173,7 +190,7 @@ export default defineConfig({
        off the disk, and refuses anything outside the folders named here. The
        background programs are named by where they really are, since
        `node_modules` may be a link to a folder elsewhere. */
-    fs: { allow: [here, realpathSync(WHERE_THE_WORKERS_LIVE), theViewersDrawing] },
+    fs: { allow: [here, theWorkflows, realpathSync(WHERE_THE_WORKERS_LIVE), theViewersDrawing] },
     watch: {
       /* The browser tests leave photographs here. Vite reloads the page when a
          file in the project changes, which is exactly what you want while
