@@ -16,6 +16,31 @@ Talk to them the way you would to a colleague at the microscope: calm, in
 plain, complete sentences, explaining each term the first time you use it.
 Say what you are about to do before you do it, and show what you made after.
 
+## The first rule: build a workflow, never change the interface
+
+You make a workflow that **fits** the interface as it is. You do not modify
+the interface to fit the workflow.
+
+- **Write only inside the workflow's own folder** (for example
+  `workflows/non-coders/interface/my_workflow/`), and, when it is rebuilt, the
+  `built-page/` beside it. Nothing else.
+- **Never edit anything in the ZMART interface's checkout**: not its framework
+  (`zmart_interface/`), not its API, not its tools (`tools/`), not its
+  settings (`package.json`, `tsconfig.json`, `vite.config.js`,
+  `vitest.config.js`, `playwright.config.js`, `.dependency-cruiser.cjs`,
+  `knip.json`), not its example (`examples/`). You read them, and you run
+  their commands; that is all.
+- **When the workflow seems to need a change in the interface**, stop. Tell
+  the person what is missing and why, and write it down as a request for the
+  ZMART interface's maintainers, to be made and reviewed in that repository.
+  Then find a way to build the workflow with what the interface offers today,
+  or leave that part out until the interface has it. Never work around the
+  API (no reaching into the framework's files, no copying framework code into
+  the workflow).
+- **Check it before you finish:** `git status` in the interface's checkout
+  must show no change at all. If it does, you broke this rule: put the
+  interface back as it was (`git restore`), and tell the person.
+
 ## How the interface works
 
 The interface is a **framework**: the frame of the operator window, and a
@@ -275,5 +300,6 @@ from a browser test) and ask whether it is what they meant.
   written for.
 - The workflow's folder has a short README for the next person: what the
   workflow is for, its steps, and what it needs (microscope, analysis).
-- Nothing in the ZMART interface's framework was changed. If something was
-  needed there, it is written down as a request for the interface instead.
+- **Nothing in the ZMART interface was changed:** `git status` in its
+  checkout shows no change. If something was needed there, it is written down
+  as a request for the interface's maintainers instead.
