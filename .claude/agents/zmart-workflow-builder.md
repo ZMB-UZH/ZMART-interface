@@ -135,6 +135,51 @@ What this means in practice:
   does not bring its own; they already find the workflows in the folder that
   `ZMART_INTERFACE_WORKFLOWS` names.
 
+## Learn from the examples: where each thing is already solved
+
+Two workflows already exist, and they are there to learn from. Before you
+write a piece of the new workflow, look at how they do the same thing, and
+when something does not work, look at how they solved it: most problems a new
+workflow meets (a panel with no size yet, a long run that must be stoppable,
+a step that waits for another) have been met there, and the fix is in their
+code and its comments.
+
+- **The template**, `zmart_interface/framework/fixtures/three_steps/flow.ts`:
+  the smallest complete workflow, every field and hook in one short file. Start
+  here.
+- **The full example**, `examples/target_acquisition/` in the interface (and
+  ZMART Microscopy's own copy in `workflows/non-coders/interface/target_acquisition/`):
+  a real workflow that drives a microscope.
+
+Where to look in Target acquisition, by what you need:
+
+| What you need | Where it is solved |
+|---|---|
+| The list of steps, the blurb, the panels, `install` | `flow.ts` |
+| The workflow's own types (`WorkflowTypes`) | `types.ts` |
+| A simple step: its declaration, its press, its controls | `steps/connect/` (`step.ts`, `run.ts`, `channel.ts`) |
+| A long step that can be interrupted (`brake`), and that fills in as it goes | `steps/focus_strategy/` (and its `interrupt-stops-between-points.spec.ts`) |
+| A step that shows what it found, and lets the operator choose | `steps/discover_targets/`, `steps/acquire_targets/` |
+| A step that walks the other steps in turn | `steps/run_protocol/` |
+| Code several steps share | `shared/` (`page-helpers.ts`, `progress.ts`, `run-document.ts`) |
+| A canvas panel that draws the sample | `the-canvas.ts`, and `canvas/` |
+| How the workflow is wired to its page when it opens | `on-the-page.ts` |
+| The backend: the verbs, the live one over the bridge, a pretend one for rehearsing | `backend/` (`verbs.ts`, `live.ts`, `pretend.ts`, `backend-contract.ts`) |
+| The Python half: its routes, its start, one lock around the microscope | `bridge/` (`__init__.py`, `starting.py`, `state.py`, `connecting.py`) |
+| Running the analysis between acquisitions | `analysis/` (`workflows.py` finds the pipelines, `warm.py` keeps the engine ready) |
+| A mock microscope to build and test on, without a microscope | `mock_microscope/` |
+| Unit tests beside a module | any `*.test.ts`, such as `steps/focus_strategy/visit-order.test.ts` |
+| Browser tests, and a walk through every step | `walk.spec.ts`, `operator-page.spec.ts`, with the helpers in `testing/` |
+| The look | `style.css` |
+
+**Take ideas and fixes, never imports.** Two workflows share nothing, so the
+new workflow does not import from Target acquisition. When a piece fits, copy
+it into the new workflow's own folder, trim it to what the new workflow
+needs, and keep its comments truthful for its new place. When the same piece
+is needed by both, that is a sign it belongs in the interface as a general
+part: write that down as a request for the interface's maintainers (the first
+rule), and copy it for now.
+
 ## Step 1: the conversation, before any code
 
 Start by understanding the experiment. Ask, a few questions at a time, and
