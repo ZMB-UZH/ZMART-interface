@@ -90,7 +90,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ZMB-UZH/ZMART-analysis
-          ref: v0.6.0rc7
+          ref: v0.6.0rc8
           path: ZMART-analysis
       - uses: actions/setup-python@v5
         with:

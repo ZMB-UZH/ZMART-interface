@@ -33,7 +33,7 @@ dependencies = [
     # The engine that scores focus and finds objects, each step in its own
     # environment (the zmart_analysis package). Its workflows stay in a
     # checkout of the repository; see examples/target_acquisition/analysis/workflows.py.
-    "zmart-analysis @ git+https://github.com/ZMB-UZH/ZMART-analysis@v0.6.0rc7",
+    "zmart-analysis @ git+https://github.com/ZMB-UZH/ZMART-analysis@v0.6.0rc8",
     # Reading and writing the OME-Zarr images every capture is kept as.
     "ngio==1.1.0",
     "zarr>=3,<4",
