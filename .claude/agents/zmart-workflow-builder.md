@@ -301,17 +301,13 @@ and `test_*.py` beside the Python half. Give every step at least a test of
 its `ready` rule and its `run`, and give the workflow a walk through all its
 steps on the pretend backend or a mock microscope.
 
-## Step 4: build it in small pieces
+## Step 4: build it in small pieces, with the page reloading live
 
-Work in short rounds, each ending with something the person can see:
-
-1. The steps in the rail, with titles and nothing behind them yet. Build the
-   page and open it, so the person sees the rail.
-2. The panels, empty, in the right places.
-3. One step at a time: its controls, its `ready`, its `run`, on the pretend
-   backend first.
-4. The Python half and the real backend, on a mock microscope.
-5. The analysis, through the pipelines the workflow brings with it.
+Work in **development mode** the whole time: the development server runs in
+the background, the person keeps the page open, and every file you save
+appears on their screen within a second (Vite's hot reload). Build the
+finished page (`npm run build`) only at the end of a round, never to see a
+change.
 
 All commands run in a checkout of ZMART-interface (with `npm ci` done once),
 with the folder of workflows named:
@@ -319,20 +315,70 @@ with the folder of workflows named:
 ```bash
 # PowerShell: $env:ZMART_INTERFACE_WORKFLOWS = "C:\path\to\workflows\non-coders\interface"
 export ZMART_INTERFACE_WORKFLOWS=/path/to/workflows/non-coders/interface
-
-npm run dev              # the page, reloading as files are saved: http://127.0.0.1:5174
-npm run check:types      # the types
-npm run check:imports    # the import rules above
-npm run check:unused     # nothing left unused
-npx vitest run           # the unit tests
-npx playwright test      # the browser tests and the walk
-npm run build            # the page -> built-page/ in the folder of workflows
-python -m pytest <the workflow's folder>   # the Python half
-zmart-interface          # the operator window, as the microscope PC opens it
 ```
 
-After every round, show the person the page (`npm run dev`, or a screenshot
-from a browser test) and ask whether it is what they meant.
+**Start the development server once, at the beginning, and leave it running**
+(in the background, so you can go on working):
+
+```bash
+npm run dev              # serves the page at http://127.0.0.1:5174, reloading on every save
+```
+
+Then ask the person to open the page, in one of two ways:
+
+- **The operator window, with the microscope side running:**
+  `zmart-interface --dev` (in the ZMART environment, in another terminal). It
+  starts the bridge, with the workflow's Python half and the mock microscope,
+  and opens the window on the development server's page. This is the way to
+  work once the workflow has a Python half.
+- **A browser, for the page alone:** `http://127.0.0.1:5174`. Add the
+  workflow's own switch for its pretend backend, if it has one (Target
+  acquisition's is `?backend=pretend`), to rehearse without a bridge.
+
+What reloads by itself, and what does not:
+
+- **TypeScript and CSS of the workflow** (steps, panels, channels, the
+  canvas, the backend): reload live as you save. Say what you changed, and ask
+  the person to look.
+- **The Python half** (`bridge/`): does not reload. After changing it, the
+  bridge must be started again: ask the person to close the window and run
+  `zmart-interface --dev` again.
+- **A new workflow folder, or a changed `workflow.json`:** restart the
+  development server (stop `npm run dev` and start it again), since it finds
+  the workflows when it starts.
+
+Work in short rounds, each ending with something the person sees on the live
+page:
+
+1. The steps in the rail, with titles and nothing behind them yet.
+2. The panels, empty, in the right places.
+3. One step at a time: its controls, its `ready`, its `run`, on the pretend
+   backend first.
+4. The Python half and the real backend, on a mock microscope
+   (`zmart-interface --dev`).
+5. The analysis, through the pipelines the workflow brings with it.
+
+At the end of each round, run the checks, so a mistake is caught while it is
+small:
+
+```bash
+npm run check:types      # the types
+npm run check:imports    # the import rules
+npm run check:unused     # nothing left unused
+npx vitest run           # the unit tests
+python -m pytest <the workflow's folder>   # the Python half
+```
+
+At the end of the work, run the slower checks and build the finished page:
+
+```bash
+npx playwright test      # the browser tests and the walk
+npm run build            # the finished page -> built-page/ in the folder of workflows
+zmart-interface          # the operator window on the built page, as the microscope PC opens it
+```
+
+Opening the built page with `zmart-interface` (without `--dev`) is the last
+look before committing: it is exactly what the microscope computer will show.
 
 ## Step 5: done means
 
