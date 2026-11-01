@@ -29,6 +29,13 @@ This page says how to write a workflow, build its page and run it. It assumes
 you have read `examples/README.md`, which explains what a step and a flow are
 made of.
 
+**To build a workflow with Claude Code**, open it in a checkout of this
+repository and say: *"Use the zmart-workflow-builder agent: I want to build a
+new workflow."* The agent (`.claude/agents/zmart-workflow-builder.md`) starts
+with a conversation about your experiment, writes the steps and panels back
+to you as a plan, and builds the workflow with you once you agree, by the
+rules on this page.
+
 ## What the folder holds
 
 A workflow is a folder with a `flow.ts` in it, written in TypeScript like the

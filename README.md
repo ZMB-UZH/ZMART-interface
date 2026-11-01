@@ -48,6 +48,9 @@ Install it and test it:
 - [Install and run the interface with its dependencies](docs/install-on-a-microscope.md)
 - [The example workflow, Target acquisition](examples/target_acquisition)
 - [Run your own workflows, or write a new one](docs/running-your-own-workflows.md)
+- Build a new workflow with Claude Code: open it here and ask for the
+  `zmart-workflow-builder` agent ([.claude/agents/zmart-workflow-builder.md](.claude/agents/zmart-workflow-builder.md)),
+  which starts with a conversation about your experiment
 - [The workflow API a workflow is written against](docs/the-workflow-api.md)
 - [How the interface is put together](docs/architecture.md)
 
