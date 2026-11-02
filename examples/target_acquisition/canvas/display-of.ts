@@ -20,6 +20,8 @@
 export interface SnapshotRow {
   acquisition?: string;
   name?: string;
+  /** Where the channel sits in the picture's store, counted from 0. */
+  within?: number;
   requested?: {
     window?: { low: number; high: number } | null;
     effectiveVisible?: boolean;
@@ -63,6 +65,15 @@ const channelIndexOf = (name: unknown): number | null => {
 };
 
 /**
+ * Where a row's channel sits in the store: the position the panel keeps, and
+ * only without one the number in its name. A microscope names its channels
+ * after their dyes ("ALEXA 405"), so on the STELLARIS no name carried a number
+ * and every copy came back in the plain red and green (2026-11-02).
+ */
+const channelOf = (row: SnapshotRow): number | null =>
+  Number.isInteger(row.within) && (row.within as number) >= 0 ? (row.within as number) : channelIndexOf(row.name);
+
+/**
  * The display entries for one acquisition, from the panel's snapshot; `[]`
  * when the panel has no rows for it. Requested state is what the operator
  * asked for, which is what the canvas is told to draw.
@@ -70,14 +81,14 @@ const channelIndexOf = (name: unknown): number | null => {
 export function displayFor(snapshot: PanelSnapshot | null | undefined, acquisition: string): Display[] {
   const rows = snapshot?.channels ?? [];
   return rows
-    .filter((row) => row.acquisition === acquisition && channelIndexOf(row.name) !== null)
+    .filter((row) => row.acquisition === acquisition && channelOf(row) !== null)
     .map((row): Display => {
       const asked = row.requested ?? {};
       /* The panel keeps a window as the engine does, `low` to `high`. */
       const window: [number, number] | null = asked.window && Number.isFinite(asked.window.low)
         && Number.isFinite(asked.window.high) ? [asked.window.low, asked.window.high] : null;
       return {
-        c: channelIndexOf(row.name),
+        c: channelOf(row),
         visible: asked.effectiveVisible ?? asked.visible ?? true,
         window,
         color: hexColour(asked.colour, asked.color),

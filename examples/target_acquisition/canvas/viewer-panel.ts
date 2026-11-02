@@ -1609,6 +1609,7 @@ export async function mountViewerPanel(near: HTMLElement | null, {
         key: viewerChannelKey(row),
         acquisition: row.acquisition,
         name: row.name,
+        within: row.within,
         requested: {
           visible: row.visible,
           effectiveVisible: effectiveVisibility(row),

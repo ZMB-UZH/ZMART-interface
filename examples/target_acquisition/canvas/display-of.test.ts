@@ -30,6 +30,22 @@ describe("the display the copies are asked with", () => {
     ]);
   });
 
+  it("finds each channel by where it sits in the store, whatever the microscope calls it", () => {
+    /* The STELLARIS names its channels after their dyes; no name carries a number. */
+    const named = { channels: [
+      { acquisition: "overview", name: "ALEXA 405", within: 0,
+        requested: { visible: true, effectiveVisible: true, color: "#2563eb", window: { low: 10, high: 900 } } },
+      { acquisition: "overview", name: "ALEXA 488", within: 1,
+        requested: { visible: true, effectiveVisible: true, color: "#22c55e", window: { low: 20, high: 800 } } },
+    ] };
+    expect(displayFor(named, "overview")).toEqual([
+      { c: 0, visible: true, window: [10, 900], color: "#2563eb" },
+      { c: 1, visible: true, window: [20, 800], color: "#22c55e" },
+    ]);
+    expect(displayedPictureAddress("/view/overview", "P0001", named, "overview"))
+      .toContain("/view/overview/P0001.jpg?display=");
+  });
+
   it("is what the whole group shows, not only what the row asked: a hidden group hides its rows", () => {
     const hidden = { channels: [{ acquisition: "overview", name: "channel 0",
       requested: { visible: true, effectiveVisible: false, color: "#22c55e", window: { low: 0, high: 10 } } }] };
