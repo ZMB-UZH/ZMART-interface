@@ -20,9 +20,11 @@ Everything runs from one conda environment on the microscope PC:
 
 ## Where things must live
 
-On the ZMB workstations AppLocker refuses to run programs from folders a user can write to.
-Everything that runs goes under `C:\ProgramData\MinicondaZMB`: the environment, the
-ZMART-analysis checkout, and (for the tests only) the Playwright browsers. A checkout on the
+On the ZMB workstations AppLocker refuses to run programs from folders a user can write to,
+and which folders it approves differs between computers: ask the computer's IT. Everything that
+runs goes into an approved folder, called `<approved>` below: conda, the environment, the
+ZMART-analysis checkout, and (for the tests only) the Playwright browsers. `conda info` shows
+where conda is (`root_prefix`) and where it makes environments (`envs_dirs`). A checkout on the
 Desktop, in Downloads or under `AppData` can install cleanly and still fail to run. Never run
 from a network share.
 
@@ -64,9 +66,9 @@ page already built inside it, so nothing is built on the microscope. For the
 workflows we run at the ZMB, that folder is in ZMART Microscopy:
 
 ```powershell
-cd C:\ProgramData\MinicondaZMB\home\<user>
+cd <approved>
 git clone https://github.com/ZMB-UZH/ZMART-microscopy
-setx ZMART_INTERFACE_WORKFLOWS C:\ProgramData\MinicondaZMB\home\<user>\ZMART-microscopy\workflows\non-coders\interface
+setx ZMART_INTERFACE_WORKFLOWS <approved>\ZMART-microscopy\workflows\non-coders\interface
 ```
 
 To try the interface's own example workflow instead, clone ZMART-interface and
@@ -76,13 +78,13 @@ says how a folder of workflows is laid out and how its page is built.
 ### 4. The analysis pipelines
 
 ```powershell
-cd C:\ProgramData\MinicondaZMB\home\<user>
+cd <approved>
 git clone -b v0.6.0rc8 https://github.com/ZMB-UZH/ZMART-analysis
 conda env create -f ZMART-analysis\examples\focus\environments\main.yml
 conda env create -f ZMART-analysis\examples\object_analysis\environments\classical.yml
 conda env create -f ZMART-analysis\examples\object_analysis\environments\cellpose.yml   # Robust detection only
 conda env create -f ZMART-analysis\examples\object_analysis\environments\umap.yml       # the multidimensional plots
-setx ZMART_ANALYSIS_WORKFLOWS C:\ProgramData\MinicondaZMB\home\<user>\ZMART-analysis
+setx ZMART_ANALYSIS_WORKFLOWS <approved>\ZMART-analysis
 ```
 
 These are the commands for the interface's example workflow, which uses

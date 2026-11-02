@@ -33,9 +33,9 @@ Every checkout keeps Unix line endings (`.gitattributes`), because the build
 copies some sources into the page as they are. So a build on any machine gives
 the committed page, byte for byte.
 
-On the ZMB workstations AppLocker runs programs only from
-`C:\ProgramData\MinicondaZMB`, so the checkout, `node_modules` and the
-Playwright browsers must live there.
+On the ZMB workstations AppLocker runs programs only from the folders it
+approves, which differ between computers, so the checkout, `node_modules` and
+the Playwright browsers must live in one of them.
 
 ## Checking the page
 
