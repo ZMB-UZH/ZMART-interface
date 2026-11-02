@@ -1,6 +1,6 @@
 # ZMART interface
 
-[![python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org/downloads/)
+[![python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/downloads/)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![tests](https://img.shields.io/badge/tests-pytest%20%7C%20vitest%20%7C%20playwright-blue)](#development-and-testing)
 [![status](https://img.shields.io/badge/status-early%20alpha-red)](#status)
@@ -28,7 +28,7 @@ The ZMART interface provides a unified interactive framework and playground that
 <br>
 
 ## Status
-This is a release candidate, 0.2.0rc1. We are currently in the process of testing it on the Leica Stellaris.
+This is a release candidate, 0.2.0rc2. We are currently in the process of testing it on the Leica Stellaris.
 
 ## A framework, and the workflows you run in it
 The interface is a framework: installing it gives you the operator window and

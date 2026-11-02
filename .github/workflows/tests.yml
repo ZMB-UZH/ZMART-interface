@@ -80,7 +80,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.12"]
     env:
       # The ZMART-analysis workflows the focus and detection tests run, in a
       # checkout beside this one, at the release pyproject.toml installs.
@@ -90,7 +90,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ZMB-UZH/ZMART-analysis
-          ref: v0.6.0rc8
+          ref: v0.6.0rc9
           path: ZMART-analysis
       - uses: actions/setup-python@v5
         with:
