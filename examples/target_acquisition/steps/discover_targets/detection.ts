@@ -37,10 +37,6 @@ export const settingsFor = (settings: Detect) => ({
   border: settings.border, binning: settings.binning,
 });
 
-/** Golden-angle hues, so neighbouring labels never share a colour. */
-const labelColour = (n: number, alpha = 1) =>
-  `hsla(${(n * 137.508) % 360}, 68%, 58%, ${alpha})`;
-
 import { dressTheMask } from "./mask-dress.ts";
 import { progressBox } from "../../shared/progress.ts";
 import { previewMessage } from "../../shared/preview-message.ts";
@@ -278,6 +274,7 @@ export default {
        test had already been run blind on it. */
     let picture: HTMLImageElement | null = null;
     let pictureFailed = false;
+    let maskFailed = false;
     let mask: HTMLImageElement | null = null;
     let pictureFor: number | null = null;
     let pictureFrom: string | null = null;
@@ -318,10 +315,12 @@ export default {
          picture, transparent where nothing was found. Fetched fresh each
          time because a re-test redraws the same file's masks. */
       mask = null;
+      maskFailed = false;
       const maskWhere = ctx.maskOf?.(label);
       if (!maskWhere) return;
       const overlay = new Image();
       overlay.onload = () => { mask = overlay; drawTheTile(); };
+      overlay.onerror = () => { maskFailed = true; drawTheTile(); };
       overlay.src = `${maskWhere}?t=${Date.now()}`;
     }
 
@@ -398,8 +397,6 @@ export default {
          operator is looking at stays in the middle. */
       const scale = Math.min(w / frame, h / frame) * look.zoom;
       const ox = w / 2 - look.cx * frame * scale, oy = h / 2 - look.cy * frame * scale;
-      const X = (x: number) => ox + (x - (tile.x - frame / 2)) * scale;
-      const Y = (y: number) => oy + (y - (tile.y - frame / 2)) * scale;
 
       paint.save();
       paint.beginPath();
@@ -436,27 +433,14 @@ export default {
         paint.drawImage(dressed, ox, oy, frame * scale, frame * scale);
         paint.globalAlpha = 1;
       }
-
-      /* What the settings found, each object at its own size, drawn as
-         circles only where no true mask picture is to be had. */
-      (masksWanted && !mask ? settings.tried : []).forEach((cell, n) => {
-        /* Each object comes with its radius. */
-        const r = Math.max(3, (cell.r as number) * scale);
-        paint.beginPath(); paint.arc(X(cell.x), Y(cell.y), r, 0, Math.PI * 2);
-        /* One colour, edge and inside alike: a darker rim read as a ring
-           drawn around something rather than the object itself. */
-        paint.fillStyle = labelColour(n, 0.55);
-        paint.fill();
-        paint.lineWidth = 1.2;
-        paint.strokeStyle = labelColour(n, 0.55);
-        paint.stroke();
-      });
       paint.restore();
 
       paint.strokeStyle = ctx.css("--line-strong");
       paint.lineWidth = 1;
       paint.strokeRect(ox + 0.5, oy + 0.5, frame * scale - 1, frame * scale - 1);
       if (pictureFailed) previewMessage(paint, w, h, "Preview unavailable");
+      /* Said, not stood in for: circles where the masks were missing read as masks. */
+      else if (masksWanted && maskFailed) previewMessage(paint, w, h, "Masks unavailable");
     }
 
     /** The settings, the position picker and the sentence underneath. */
