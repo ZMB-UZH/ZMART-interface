@@ -1535,9 +1535,10 @@ def test_targets_are_really_focussed_and_taken_on_the_mock(mock_instrument, monk
     assert record["focus"]["found"] is True
     targets = output.current_run(state.run, "targets")
     assert targets == state.run / "targets" / "run_01"
-    assert (state.run / "focussing" / "targets" / "run_01" / "data").is_dir()
-    assert list((state.run / "focussing" / "targets" / "run_01" / "positions").glob("*.ome.zarr"))
-    assert list((targets / "positions").glob("*.ome.zarr"))
+    # Each capture is kept as a position in its own run, in the format the run is saved in.
+    for kept, run in ((stack, state.run / "focussing" / "targets" / "run_01"), (record, targets)):
+        position = Path(kept["position_path"])
+        assert position.exists() and run in position.parents, position
 
 
 # --- the multidimensional plots ---------------------------------------------
