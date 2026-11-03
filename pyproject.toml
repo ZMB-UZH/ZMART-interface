@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zmart-interface"
-version = "0.2.0rc6"
+version = "0.2.0rc7"
 description = "The ZMART operator window: walk a smart-microscopy run step by step, on any microscope the ZMART Controller drives."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
