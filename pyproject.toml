@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zmart-interface"
-version = "0.2.0rc5"
+version = "0.2.0rc6"
 description = "The ZMART operator window: walk a smart-microscopy run step by step, on any microscope the ZMART Controller drives."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -41,6 +41,9 @@ dependencies = [
     # Reading the image files a microscope writes, and writing the OME-TIFF
     # positions a run can be kept as.
     "tifffile>=2024.1",
+    # The OME description inside a TIFF, which the analysis steps run in this
+    # process read: the previews beside the canvas of a run kept as OME-TIFF.
+    "ome-types>=0.5",
     # The small pictures beside the canvas, and the detection masks.
     "pillow>=10",
     # Image filters for the analysis steps run in this process, and the blur of
@@ -61,12 +64,11 @@ dependencies = [
 # The drivers for real microscopes. Install the extra of the driver too, for
 # example the Leica's: pip install "zmart-drivers[leica] @ git+...".
 drivers = ["zmart-drivers @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b10"]
-# What working on the interface needs beyond running it: pytest, the reader
-# of the OME description inside a TIFF, which the analysis steps run in-process
-# use, and ruff, which checks the Python as the automatic checks do (pinned, so
-# a new ruff release cannot fail a change nobody made). The page's own tools
-# come from npm (see README.md).
-dev = ["pytest>=8", "ome-types>=0.5", "ruff==0.12.12"]
+# What working on the interface needs beyond running it: pytest, and ruff,
+# which checks the Python as the automatic checks do (pinned, so a new ruff
+# release cannot fail a change nobody made). The page's own tools come from
+# npm (see README.md).
+dev = ["pytest>=8", "ruff==0.12.12"]
 
 [project.urls]
 Repository = "https://github.com/ZMB-UZH/ZMART-interface"
