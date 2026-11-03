@@ -96,7 +96,7 @@ the first press of a session pays the start-up of those workers once.
 
 ### 5. The driver
 
-Install the driver's extra (for the Leica: `pip install "zmart-drivers[leica] @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b9"`),
+Install the driver's extra (for the Leica: `pip install "zmart-drivers[leica] @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b10"`),
 and do the driver's own setup for this microscope -- its limits, origin and, for the Leica,
 the image orientation and objective calibration. Each driver's README says how; the Leica
 driver has a setup wizard for it: `python -m zmart_drivers.leica.stellaris.navigator_expert.driver_setup.wizard`. The driver
