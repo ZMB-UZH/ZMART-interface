@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 import urllib.error
@@ -31,7 +32,6 @@ def _empty_service(*, port: int | None = None) -> dict:
         "source_versions": {},
         "source_order": {},
         "canvas": {"x_um": [0, 160], "y_um": [0, 160]},
-        "run_folder": "unused-mocked-run",
         "pending": set(),
         "wake": threading.Event(),
     }
@@ -925,6 +925,85 @@ def test_real_viewer_publishes_100_positions_without_holding_up_notifications(
                 "final_publication_lag_ms": (time.perf_counter() - last_write) * 1000,
             }
         )
+    finally:
+        service.stop()
+        server.server_close()
+
+
+def _a_real_position(folder: Path, name: str, value: int, x_um: float) -> Path:
+    """One small OME-Zarr position, written as the acquisition writer does: aside, then moved in."""
+    from .images import declare_image
+    from .positions import _describe_mean_pyramid
+
+    staging = folder.parent / "writing" / name
+    arrays = declare_image(
+        staging, canvas_shape=(1, 16, 16), frames=1, channels=1, dtype="uint16", chunk=16,
+        levels=2, voxel_size_um=(1, 1, 1), first_voxel_um=(0, 0.5, x_um + 0.5),
+        channel_blocks=[{"label": "signal", "color": "FFFFFF",
+                         "window": {"start": 0, "end": 255, "min": 0, "max": 65535}}],
+        ome_zarr_version="0.5",
+    )
+    arrays[0][:] = value
+    arrays[1][:] = value
+    description_path = staging / "zarr.json"
+    description = json.loads(description_path.read_text())
+    _describe_mean_pyramid(description)
+    description_path.write_text(json.dumps(description))
+    folder.mkdir(parents=True, exist_ok=True)
+    staging.rename(folder / name)
+    return folder / name
+
+
+def _until(condition, seconds: float = 15):
+    """Wait for the background publisher; answer the last status either way."""
+    end = time.perf_counter() + seconds
+    while True:
+        state = service.status()
+        if condition(state) or time.perf_counter() > end:
+            return state
+        time.sleep(0.05)
+
+
+def test_real_viewer_shows_the_new_run_and_not_the_earlier_one(monkeypatch, tmp_path):
+    """A step taken again starts a run of its own (run_01, run_02): the canvas
+    shows the new run's pictures, as the real viewer publishes them, and
+    nothing of the earlier run, which stays on disk. On the STELLARIS
+    (2026-11-03) the second run was refused instead, "An open view set cannot
+    change its output options", and the canvas kept the first."""
+    monkeypatch.setattr(service, "_viewer", _empty_service())
+    service.start(tmp_path, bake=False, canvas={"x_um": [0, 64], "y_um": [0, 16]})
+    assert service.status()["running"], service.status()
+    server = service._viewer["server"]
+    first, second = tmp_path / "overview" / "run_01" / "data", tmp_path / "overview" / "run_02" / "data"
+    try:
+        for i in range(2):
+            store = _a_real_position(first, f"overview_A{i}.ome.zarr", 10, 16 * i)
+            service.a_position_landed("overview", first, store=store)
+        state = _until(lambda s: s["publications"].get("overview", {}).get("published") == 2)
+        assert state["error"] is None, state["error"]
+        earlier = json.dumps(state["sources"].get("overview", []))
+
+        service.a_run_began("overview")
+        assert not [one for one in service.status()["acquisitions"] if one["name"] == "overview"], (
+            "the earlier run is still shown after the new one began"
+        )
+        for i in range(2):
+            store = _a_real_position(second, f"overview_B{i}.ome.zarr", 20, 32 + 16 * i)
+            service.a_position_landed("overview", second, store=store)
+        state = _until(lambda s: s["publications"].get("overview", {}).get("published") == 2
+                       and json.dumps(s["sources"].get("overview", [])) != earlier)
+
+        assert state["error"] is None, state["error"]
+        assert state["publications"]["overview"].get("state") != "blocked", state["publications"]
+        assert json.dumps(state["sources"].get("overview", [])) != earlier, "the canvas kept the first run"
+        assert len(state["sources"].get("overview", [])) == 1, state["sources"]
+        # What the canvas is handed: every layer of the overview from the new run's view only.
+        shown = [source for one in state["acquisitions"] if one["name"] == "overview"
+                 for channel in one["channels"] for source in channel["sources"]]
+        assert shown, state["acquisitions"]
+        datasets = {re.search(r"/data/(\d+)/", source).group(1) for source in shown}
+        assert len(datasets) == 1, f"the canvas is handed more than one run: {shown}"
+        assert (first / "overview_A0.ome.zarr").is_dir(), "the earlier run stays on disk"
     finally:
         service.stop()
         server.server_close()

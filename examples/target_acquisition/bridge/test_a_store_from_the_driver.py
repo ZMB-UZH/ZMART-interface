@@ -256,7 +256,7 @@ def test_the_view_asks_the_viewer_to_read_the_given_projections(monkeypatch, tmp
     wake = type("Wake", (), {"set": lambda self: None})()
     for key, value in {
         "port": 1, "wake": wake, "opened": set(), "bake": False, "canvas": {},
-        "run_folder": str(tmp_path / "run"), "pending": set(), "publishing": set(),
+        "pending": set(), "publishing": set(),
         "source_versions": {}, "source_order": {}, "folder_types": {}, "projections_in": {},
     }.items():
         monkeypatch.setitem(viewer_service._viewer, key, value)

@@ -138,7 +138,6 @@ def start(run_folder: Path | str, *, bake: bool = False, canvas: dict | None = N
             _viewer.update(server=made, thread=thread, port=made.server_address[1], wake=wake,
                            bake=bake, folder_types={})
             _viewer["canvas"] = canvas
-            _viewer["run_folder"] = str(Path(run_folder).resolve())
             threading.Thread(target=_publish_changes, args=(wake,), daemon=True).start()
             threading.Thread(target=_watch_metadata, args=(wake,), daemon=True).start()
         except Exception as why:  # noqa: BLE001 -- optional guest, sentence not stack
@@ -316,6 +315,9 @@ def a_run_began(acquisition_type: str) -> None:
         for folder in [folder for folder, kind in folder_types.items() if kind == acquisition_type]:
             del folder_types[folder]
             _viewer["pending"].discard(folder)
+        # Out of the picture the page reads now, not at the next read of the viewer.
+        _viewer["sources"].pop(acquisition_type, None)
+        _viewer["acquisitions"] = [one for one in _viewer["acquisitions"] if one["name"] != acquisition_type]
 
 
 def forget_a_store(acquisition_type: str, name: str) -> None:
@@ -366,7 +368,6 @@ def _publish_once(wake: threading.Event, pending: set[str]) -> bool:
         folder_types = dict(_viewer.get("folder_types", {}))
         orders = {kind: list(names) for kind, names in _viewer["source_order"].items()}
         canvas = _viewer["canvas"]
-        run_folder = Path(_viewer["run_folder"])
         given = dict(_viewer.get("projections_in", {}))
         _viewer.setdefault("publishing", set()).update(pending)
     retry = set()
@@ -389,7 +390,9 @@ def _publish_once(wake: threading.Event, pending: set[str]) -> bool:
                 _ask(port, "/api/stores/open", {
                     **payload, "bake": bake, "canvas": canvas,
                     "views": {
-                        "path": str(run_folder / "view"),
+                        # In the run's own folder: each run is a view set of its own, which
+                        # the viewer opens afresh (it refuses to change an open one's options).
+                        "path": str(Path(folder).parent / "view"),
                         "acquisition": kind,
                         "modes": [], "projections": ["max"],
                         **(
@@ -617,8 +620,15 @@ def _the_scene_in(config: dict, port: int) -> dict:
     def group_of(row: dict) -> str:
         return _the_heading_of(row)
 
+    def number_of(source: str) -> int:
+        found = re.search(r"/data/(\d+)/", source)
+        return int(found.group(1)) if found else -1
+
     candidates = []
     newest: dict[str, int] = {}
+    # A named view's dataset is a run's view set: each run of a step has its
+    # own, so the newest per acquisition is the run the canvas shows.
+    newest_view: dict[str, int] = {}
     for original in config.get("layers") or []:
         if not isinstance(original, dict):
             continue
@@ -631,24 +641,14 @@ def _the_scene_in(config: dict, port: int) -> dict:
         if row.get("coverageSources"):
             row["coverageSources"] = [whole(source) for source in row["coverageSources"]]
         candidates.append(row)
+        held = newest_view if row.get("view") else newest
         for source in row["sources"]:
-            found = re.search(r"/data/(\d+)/", source)
-            number = int(found.group(1)) if found else -1
-            newest[row["group"]] = max(newest.get(row["group"], -1), number)
+            held[row["group"]] = max(held.get(row["group"], -1), number_of(source))
 
     layers = []
     for row in candidates:
-        if row.get("view"):
-            if row["sources"]:
-                layers.append(row)
-            continue
-        wanted = newest.get(row["group"], -1)
-        row["sources"] = [
-            source
-            for source in row["sources"]
-            if (int(found.group(1)) if (found := re.search(r"/data/(\d+)/", source)) else -1)
-            == wanted
-        ]
+        wanted = (newest_view if row.get("view") else newest).get(row["group"], -1)
+        row["sources"] = [source for source in row["sources"] if number_of(source) == wanted]
         if row["sources"]:
             layers.append(row)
     return {
