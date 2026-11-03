@@ -297,36 +297,42 @@ def raise_position(acquisition_type: str, positions_folder: Path, store: Path) -
             _queue_publication(str(positions_folder))
 
 
-def stores_were_retired(acquisition_type: str, positions_folder: Path | str) -> None:
-    """Queue a new snapshot after a shorter rerun removes position stores."""
-    folder = str(positions_folder)
-    with _the_turn:
-        if folder in _viewer["opened"] or any(
-            kind == acquisition_type for kind, _ in _viewer["source_versions"]
-        ):
-            _viewer.setdefault("folder_types", {})[folder] = acquisition_type
-            _queue_publication(folder)
+def a_run_began(acquisition_type: str) -> None:
+    """A step of this kind started a new run: stop showing the earlier one.
 
-
-def forget_stores(acquisition_type: str, keeping: set[str]) -> None:
-    """Stop showing this kind's stores, except those named in *keeping*, without touching them.
-
-    A store a driver saved is the capture itself and is never deleted; a
-    rerun of the scan leaves it on disk and only stops handing it to the
-    viewer, the way a deleted store of the interface's own drops out.
+    The earlier run's folder is never announced again, and its positions are
+    forgotten here, so the canvas shows nothing of it once the new run's
+    folder is opened; until the new run's first capture lands, it shows
+    nothing of this kind at all. The earlier run stays on disk untouched.
+    Where the driver keeps its projections is the new run's to say.
     """
     with _the_turn:
         versions = _viewer["source_versions"]
-        gone = [key for key in versions if key[0] == acquisition_type and key[1] not in keeping]
-        for key in gone:
+        for key in [key for key in versions if key[0] == acquisition_type]:
             del versions[key]
+        _viewer["source_order"].pop(acquisition_type, None)
+        _viewer.setdefault("projections_in", {}).pop(acquisition_type, None)
+        folder_types = _viewer.setdefault("folder_types", {})
+        for folder in [folder for folder, kind in folder_types.items() if kind == acquisition_type]:
+            del folder_types[folder]
+            _viewer["pending"].discard(folder)
+
+
+def forget_a_store(acquisition_type: str, name: str) -> None:
+    """Stop showing one position of this kind, without touching it on disk.
+
+    Used when a label is taken again in the same run: the new capture is the
+    one shown, and the earlier one stays in the run's folder.
+    """
+    with _the_turn:
+        if _viewer["source_versions"].pop((acquisition_type, name), None) is None:
+            return
         order = _viewer["source_order"].get(acquisition_type)
-        if order is not None:
-            order[:] = [name for name in order if name in keeping]
-        if gone:
-            for folder, kind in _viewer.get("folder_types", {}).items():
-                if kind == acquisition_type:
-                    _queue_publication(folder)
+        if order is not None and name in order:
+            order.remove(name)
+        for folder, kind in _viewer.get("folder_types", {}).items():
+            if kind == acquisition_type:
+                _queue_publication(folder)
 
 
 def _queue_publication(folder: str) -> None:
@@ -389,7 +395,8 @@ def _publish_once(wake: threading.Event, pending: set[str]) -> bool:
                         **(
                             {"projection_path": given[kind], "projections_given": True}
                             if kind in given
-                            else {"projection_path": str(run_folder / kind / "projections")}
+                            # Beside the run's own captures: the run's ``projections``.
+                            else {"projection_path": str(Path(folder).parent / "projections")}
                         ),
                     },
                 })

@@ -513,7 +513,7 @@ def test_a_capture_answers_as_the_controller_does(monkeypatch):
         "acquisition_type": "overview",
         "position_label": "K00_M000001_G000000_P000007_V00",
     })
-    path = str(session.run / "overview" / "overview_K00_M000001_G000000_P000007_V00.tiff")
+    path = str(session.run / "overview" / "run_01" / "overview_K00_M000001_G000000_P000007_V00.tiff")
     assert answer == {"success": True, "output": {
         "position_label": "K00_M000001_G000000_P000007_V00",
         "acquisition_type": "overview",
@@ -557,7 +557,7 @@ def test_the_settings_a_capture_is_given_reach_the_driver(monkeypatch):
     })
     assert driver.asked[-1] == (
         "K00_M000002_G000001_P000003_V00", {"trigger": "full"},
-        "targets", str(session.run / "targets"),
+        "targets", str(session.run / "targets" / "run_01"),
     )
 
 
@@ -790,15 +790,15 @@ def test_a_scan_really_captures_at_every_position(mock_instrument, monkeypatch, 
         "K00_M000002_G000002_P000002_V00",
     ]
     # Every capture wrote what it says it wrote, where a driver writes it.
-    written = sorted((state.run / "overview" / "data").glob("*.ome.tiff"))
+    written = sorted((output.current_run(state.run, "overview") / "data").glob("*.ome.tiff"))
     assert len(written) == 3 * 3  # three positions, one file per channel
     for record in records:
         for path in (plane["path"] for plane in record["planes"]):
             assert Path(path).is_file()
-            assert Path(path).parent == state.run / "overview" / "data"
+            assert Path(path).parent == output.current_run(state.run, "overview") / "data"
     # And the state it was captured under is printed beside them, once each.
     printed = sorted(
-        (state.run / "overview" / "data" / "metadata" / "ZMART_state").iterdir()
+        (output.current_run(state.run, "overview") / "data" / "metadata" / "ZMART_state").iterdir()
     )
     assert len(printed) == 3
 
@@ -884,7 +884,7 @@ def test_the_viewer_makes_a_picture_of_every_field_that_was_imaged(mock_instrume
     assert here["x0"] + here["w"] / 2 == pytest.approx(0.0)
     assert there["x0"] + there["w"] / 2 == pytest.approx(900.0)
     # And the acquisition itself is untouched, kept under this run.
-    assert list((state.run / "overview" / "data").glob("*.ome.tiff"))
+    assert list((output.current_run(state.run, "overview") / "data").glob("*.ome.tiff"))
     assert not list(view.glob("*.tiff"))
 
 
@@ -994,7 +994,7 @@ def test_object_detection_ends_with_its_last_field(monkeypatch):
     for cell in (cell for field in got["fields"] for cell in field["cells"]):
         assert not any(name.startswith("umap") for name in (cell.get("features") or {}))
     for record in records:
-        kept = next((state.run / "overview" / "analysis").glob(
+        kept = next((output.current_run(state.run, "overview") / "analysis").glob(
             f"*_{record['position_label']}_T000000_targets.json"
         ))
         assert "umap" not in kept.read_text(encoding="utf-8")
@@ -1008,7 +1008,7 @@ def test_the_whole_population_is_one_table_on_disk(monkeypatch):
 
     _an_overview_of_two_fields(monkeypatch)
     _discovered({"settings": {}})
-    table = state.the_run() / "overview" / "analysis" / (
+    table = output.current_run(state.the_run(), "overview") / "analysis" / (
         f"overview_{run_hash(state.run)}_objects.csv"
     )
     rows = list(csv.DictReader(table.open(encoding="utf-8", newline="")))
@@ -1026,7 +1026,7 @@ def test_one_field_tried_on_its_own_leaves_the_population_table_alone(monkeypatc
     the last whole run stays."""
     _an_overview_of_two_fields(monkeypatch)
     _discovered({"settings": {}})
-    table = state.the_run() / "overview" / "analysis" / (
+    table = output.current_run(state.the_run(), "overview") / "analysis" / (
         f"overview_{run_hash(state.run)}_objects.csv"
     )
     before = table.read_text(encoding="utf-8")
@@ -1060,7 +1060,7 @@ def test_fast_fields_are_found_several_at_once_and_kept_in_the_samples_order(mon
     assert [field["field"] for field in got["fields"]] == [1, 0]
     assert got["done"] == 2 and got["objects"] == 2
     assert got["phase"] == "complete"
-    table = next((state.run / "overview" / "analysis").glob("overview_*_objects.csv"))
+    table = next((output.current_run(state.run, "overview") / "analysis").glob("overview_*_objects.csv"))
     assert [line.split(",")[0] for line in table.read_text(encoding="utf-8").splitlines()[1:]] == ["0", "1"]
 
 
@@ -1094,7 +1094,7 @@ def test_what_was_found_is_kept_beside_the_overview(monkeypatch):
     """The targets live with the pixels they were found in, not only on screen."""
     _an_overview_of_two_fields(monkeypatch)
     _discovered({"settings": {}})
-    kept = sorted((state.run / "overview" / "analysis").glob("*_targets.json"))
+    kept = sorted((output.current_run(state.run, "overview") / "analysis").glob("*_targets.json"))
     assert [path.name for path in kept] == [
         "overview_P0_T000000_targets.json",
         "overview_P1_T000000_targets.json",
@@ -1320,8 +1320,8 @@ def test_the_view_is_built_once_per_scan_state(monkeypatch, tmp_path):
     monkeypatch.setattr(state, "records", {"overview": [record]})
     monkeypatch.setattr(state, "view_built", {})
 
-    (state.run / "overview" / "view").mkdir(parents=True)
-    (state.run / "overview" / "view" / "tiles.json").write_text("{}", encoding="utf-8")
+    pictures.view_of("overview").mkdir(parents=True)
+    (pictures.view_of("overview") / "tiles.json").write_text("{}", encoding="utf-8")
     pictures.the_view_of("overview")
     pictures.the_view_of("overview")
     assert built == [1], "the second request found nothing new to build"
@@ -1357,8 +1357,8 @@ def test_a_field_that_lands_during_a_build_is_not_signed_off_as_built(monkeypatc
     record = _kept("overview", position_label="P0")
     monkeypatch.setattr(state, "records", {"overview": [record]})
     monkeypatch.setattr(state, "view_built", {})
-    (state.run / "overview" / "view").mkdir(parents=True)
-    (state.run / "overview" / "view" / "tiles.json").write_text("{}", encoding="utf-8")
+    pictures.view_of("overview").mkdir(parents=True)
+    (pictures.view_of("overview") / "tiles.json").write_text("{}", encoding="utf-8")
 
     pictures.the_view_of("overview")
     pictures.the_view_of("overview")
@@ -1389,135 +1389,31 @@ def test_a_measured_point_names_the_slices_of_the_stack_it_kept(monkeypatch):
     assert all("path" in plane and "z_um" in plane for plane in handed[0])
 
 
-def test_a_scan_started_again_removes_the_stores_it_will_not_rewrite(monkeypatch):
-    """A rerun accounts for exactly what it captured.
-
-    The position stores and the display copies of the last run stayed on
-    disk, so a shorter rerun showed fields it never captured, and the viewer
-    kept listing every store it had once seen. A store the new plan writes
-    again stays, and is replaced in place as it lands; a store beyond the new
-    plan is stale: it is removed, and the viewer service is told so that
-    the page finds out at once."""
-    told = []
-    monkeypatch.setattr(
-        viewer_service, "stores_were_retired",
-        lambda kind, folder: told.append((kind, Path(folder))),
-    )
-    positions = state.run / "positions" / "overview"
-    kept = positions / "overview_K00_M000000_G000000_P000000_V00.ome.zarr"
-    stale = positions / "overview_K00_M000000_G000000_P000002_V00.ome.zarr"
-    for store in (kept, stale):
-        store.mkdir(parents=True)
-        (store / "zarr.json").write_text("{}", encoding="utf-8")
-    aggregate = positions / ".zmart-viewer" / "overview.ome.zarr"
-    aggregate.mkdir(parents=True)
-    (aggregate / "publication.json").write_text("published", encoding="utf-8")
-    note = positions / "notes.txt"
-    note.write_text("keep", encoding="utf-8")
-    half_written = state.run / "positions" / ".writing" / "x"
-    half_written.mkdir(parents=True)
+def test_a_scan_started_again_is_a_new_run_and_the_last_one_stays_whole(driver, monkeypatch):
+    """A rerun, or a scan after an interrupt, gets ``overview/run_NN`` of its
+    own. The earlier run -- its captures, positions and display copies -- is
+    left exactly as it was, and the canvas stops showing it."""
+    monkeypatch.setitem(ledgers.scan, "running", False)
+    monkeypatch.setattr(threading, "Thread", lambda **kw: type("T", (), {"start": lambda self: None})())
+    began = []
+    monkeypatch.setattr(viewer_service, "a_run_began", began.append)
+    earlier = output.prepare_acquisition(state.run, "overview")
+    kept = earlier / "positions" / "overview_K00_M000000_G000000_P000000_V00.ome.zarr"
+    kept.mkdir(parents=True)
     copies = pictures.view_of("overview")
     copies.mkdir(parents=True)
     (copies / "tiles.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(state, "view_built", {"overview": 3})
 
-    pictures.replace_the_acquisition("overview", keeping={kept.name})
-
-    assert told == [("overview", positions)]
-    assert kept.is_dir(), "a store the new plan writes again stays for in-place replacement"
-    assert not stale.exists()
-    assert (aggregate / "publication.json").read_text(encoding="utf-8") == "published"
-    assert note.read_text(encoding="utf-8") == "keep"
-    assert not half_written.parent.exists()
-    assert not copies.exists()
-    assert "overview" not in state.view_built
-
-
-def test_a_scan_that_only_grows_keeps_the_viewer_open(monkeypatch):
-    """Declaring the same positions again, plus more, is growth, not a rerun
-    that shrinks: nothing is stale, so nothing is removed or announced and
-    the picture is not reopened."""
-    told = []
-    monkeypatch.setattr(
-        viewer_service, "stores_were_retired",
-        lambda kind, folder: told.append(kind),
-    )
-    positions = state.run / "positions" / "overview"
-    kept = positions / "overview_K00_M000000_G000000_P000000_V00.ome.zarr"
-    kept.mkdir(parents=True)
-    (positions / ".zmart-viewer").mkdir()
-    pictures.replace_the_acquisition("overview", keeping={kept.name, "overview_next.ome.zarr"})
-    assert told == []
-    assert kept.is_dir()
-
-
-@pytest.mark.parametrize("bake", [False, True])
-def test_shorter_rerun_preserves_the_live_aggregate_and_republishes_coverage(monkeypatch, bake):
-    from zmart_viewer import STORE, PublishedAcquisition
-
-    from ..storage.images import declare_image
-    from ..storage.positions import _describe_mean_pyramid
-
-    positions = state.run / "positions" / "overview"
-    names = ["overview_kept.ome.zarr", "overview_retired.ome.zarr"]
-    for index, name in enumerate(names):
-        store = positions / name
-        arrays = declare_image(
-            store, canvas_shape=(1, 32, 32), frames=1, channels=1,
-            dtype="uint16", chunk=16, levels=2, voxel_size_um=(1, 1, 1),
-            channel_blocks=[{"label": "signal", "color": "FFFFFF"}],
-            first_voxel_um=(0, 0.5, index * 64 + 0.5), ome_zarr_version="0.5",
-        )
-        for array in arrays:
-            array[:] = (index + 1) * 100
-        description_path = store / "zarr.json"
-        description = json.loads(description_path.read_text(encoding="utf-8"))
-        _describe_mean_pyramid(description)
-        description_path.write_text(json.dumps(description), encoding="utf-8")
-    canvas = {"x_um": [0, 128], "y_um": [0, 64]}
-    view = PublishedAcquisition(positions, piece=16)
-
-    def publish(held):
-        view.publish(positions, dict.fromkeys(held, 1), canvas, bake=bake, composition={
-            "regions": "complete", "order": held,
-            "pyramid_reduction": "mean-xy2-crop-f32-rint-int",
-        })
-
-    try:
-        publish(names)
-        derived = {path: path.read_bytes() for path in (positions / ".zmart-viewer").rglob("*") if path.is_file()}
-        original = {path: path.read_bytes() for path in (positions / names[0]).rglob("*") if path.is_file()}
-        told = []
-        monkeypatch.setattr(viewer_service, "stores_were_retired", lambda *args: told.append(args))
-        pictures.replace_the_acquisition("overview", keeping={names[0]})
-        assert told == [("overview", positions)]
-        assert all(path.read_bytes() == content for path, content in derived.items())
-        publish(names[:1])
-        composer = view.outputs[STORE].composer()
-        for level in range(composer.mosaic.levels):
-            assert composer.values_for(level, 0, 0, 0)[0, 0] == 100
-            assert composer.coverage_for(level, 0, 0, 0)[0, 0] == 1
-            column, pixel = divmod(64 // 2**level, 16)
-            values = composer.values_for(level, 0, 0, column)
-            assert values is None or values[0, pixel] == 0
-            assert composer.coverage_for(level, 0, 0, column)[0, pixel] == 0
-        assert all(path.read_bytes() == content for path, content in original.items())
-    finally:
-        view.close()
-
-
-def test_starting_a_scan_names_the_stores_it_keeps_by_the_new_plan(driver, monkeypatch):
-    # The scan's thread is never started here, so its "running" is put back after.
-    monkeypatch.setitem(ledgers.scan, "running", False)
-    asked = []
-    monkeypatch.setattr(pictures, "replace_the_acquisition", lambda kind, keeping: asked.append((kind, keeping)))
-    monkeypatch.setattr(threading, "Thread", lambda **kw: type("T", (), {"start": lambda self: None})())
     scan.start_scan({"positions": [{"x": 0, "y": 0}, {"x": 1, "y": 0}], "acquisition_type": "overview"})
-    assert asked == [("overview", {
-        "overview_K00_M000000_G000000_P000000_V00.ome.tif",
-        "overview_K00_M000000_G000000_P000001_V00.ome.tif",
-    })]
 
+    later = output.current_run(state.run, "overview")
+    assert (earlier.name, later.name) == ("run_01", "run_02")
+    assert kept.is_dir() and (copies / "tiles.json").is_file(), "the earlier run stays whole"
+    assert began == ["overview"]
+    assert "overview" not in state.view_built
+    said = json.loads((later / "attempt.json").read_text(encoding="utf-8"))
+    assert said["settings"]["fields"] == 2
 
 
 def test_a_copy_is_drawn_with_the_display_the_page_asks_with(mock_instrument, monkeypatch, tmp_path):
@@ -1579,14 +1475,14 @@ def test_a_targets_scan_publishes_separate_originals_and_raises_by_order(mock_in
         assert ledgers.scan["error"] is None, ledgers.scan["error"]
         assert ledgers.scan["done"] == 2
         assert not [r.get("position_error") for r in ledgers.scan["records"] if r.get("position_error")]
-        watched = sorted(p.name for p in (state.the_run() / "positions" / "targets").iterdir())
+        watched = sorted(p.name for p in (output.current_run(state.the_run(), "targets") / "positions").iterdir())
         assert len(watched) == 2 and all(name.startswith("targets_") for name in watched)
-        originals = {p: p.read_bytes() for p in (state.the_run() / "positions" / "targets").rglob("*") if p.is_file()}
+        originals = {p: p.read_bytes() for p in (output.current_run(state.the_run(), "targets") / "positions").rglob("*") if p.is_file()}
         raised = []
         monkeypatch.setattr(viewer_service, "raise_position", lambda *args: raised.append(args))
         label = state.records["targets"][0]["position_label"]
         assert targets.raise_target({"position_label": label}) == {"raised": label}
-        assert raised == [("targets", state.the_run() / "positions" / "targets",
+        assert raised == [("targets", output.current_run(state.the_run(), "targets") / "positions",
                            Path(state.records["targets"][0]["position_path"]))]
         assert all(p.read_bytes() == data for p, data in originals.items())
         with pytest.raises(ValueError):
@@ -1637,9 +1533,11 @@ def test_targets_are_really_focussed_and_taken_on_the_mock(mock_instrument, monk
     assert stack.get("position_error") is None, stack["position_error"]
     assert len(stack["planes"]) > 1, "the Focussing job takes a stack"
     assert record["focus"]["found"] is True
-    assert (state.run / "target-focussing" / "data").is_dir()
-    assert list((state.run / "positions" / "target-focussing").glob("*.ome.zarr"))
-    assert list((state.run / "positions" / "targets").glob("*.ome.zarr"))
+    targets = output.current_run(state.run, "targets")
+    assert targets == state.run / "targets" / "run_01"
+    assert (state.run / "focussing" / "targets" / "run_01" / "data").is_dir()
+    assert list((state.run / "focussing" / "targets" / "run_01" / "positions").glob("*.ome.zarr"))
+    assert list((targets / "positions").glob("*.ome.zarr"))
 
 
 # --- the multidimensional plots ---------------------------------------------

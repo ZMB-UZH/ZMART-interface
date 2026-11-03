@@ -1,12 +1,12 @@
-"""Each capture becomes one position of the run, in the format chosen at Connect.
+"""Each capture becomes one position, in the format chosen at Connect.
 
 The instrument writes what it writes — LAS X's autosave leaves OME-TIFFs, and
 fighting a vendor's own export is a losing game — so the vendor's files are
 used as well as possible and then, the moment a capture lands, converted into
-the run's own form: **one position per capture, axes t/c/z/y/x**, where it
-was taken recorded inside it where nobody can rename it away. The vendor's
-files stay untouched in ``data/``; the positions stand in ``positions/``
-beside them.
+the experiment's own form: **one position per capture, axes t/c/z/y/x**,
+where it was taken recorded inside it where nobody can rename it away. The
+vendor's files stay untouched in ``data/``; the positions stand in
+``positions/`` beside them, in the same ``run_NN`` folder.
 
 A run is saved in one of two formats, chosen when connecting (:data:`FORMATS`):
 
@@ -73,6 +73,7 @@ from .images import (
     declare_image,
     how_many_copies_a_position_can_keep,
 )
+from .output import free_name
 
 #: The two formats a run's positions can be saved in, as the Connect step
 #: offers them: OME-TIFF first, and the default.
@@ -210,11 +211,6 @@ def plane_of(position: Path | str, *, t: int, c: int, z: int) -> np.ndarray:
     return np.asarray(zarr.open_array(str(position / full_size), mode="r")[t, c, z])
 
 
-def name_of_a_position(kind: str, label: str, format: str) -> str:
-    """What a position is called: ``overview_P000001.ome.tif``, say."""
-    return f"{kind}_{label}{ENDINGS[format]}"
-
-
 def is_a_position_name(name: str) -> bool:
     """Whether a name is that of a position, in either format."""
     return name.endswith(ENDINGS["ome-zarr"]) or name.lower().endswith(_TIFF_ENDINGS)
@@ -266,9 +262,11 @@ def _write_a_position(record: dict, into: Path | str, *, format: str) -> Path:
     # interface's own, stamped on the record by the bridge from what it asked
     # for; drivers do not report it.
     kind = record.get("acquisition_type") or "capture"
-    published = into / name_of_a_position(kind, record["position_label"], format)
+    # A label taken again in the same run never replaces its earlier position:
+    # the new one takes the next free name (``..._001``), and both stay.
+    published = free_name(into, f"{kind}_{record['position_label']}", ENDINGS[format])
     # Written somewhere the viewer is not looking, and moved into place only
-    # once every level is filled. The viewer watches ``positions/<type>`` and
+    # once every level is filled. The viewer watches the ``positions`` folder and
     # shows a store the moment its description exists, so a store filled in
     # place was visible while its coarser copies were still empty: the
     # picture asked for a zoomed-out copy, was told there was none, and
@@ -365,11 +363,12 @@ def _a_place_to_write(into: Path, name: str) -> Path:
 
 
 def _publish(built: Path, published: Path) -> Path:
-    """Move a finished store into the watched folder, replacing an older one.
+    """Move a finished store into the watched folder.
 
-    A rerun writes the same position again. The old store is moved aside
-    first and the new one moved in, two renames rather than a slow delete
-    with the name missing in between; the old pixels are removed last.
+    Its name is a free one, so nothing is normally there. Should another
+    store have taken the name in the meantime, it is moved aside first and
+    the new one moved in, two renames rather than a slow delete with the
+    name missing in between.
     """
     retired = None
     if published.exists():

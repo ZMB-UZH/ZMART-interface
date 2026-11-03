@@ -1,7 +1,8 @@
-"""What a run leaves behind: where it is written, what the driver said it
-wrote, and the position every capture is kept as.
+"""What an experiment leaves behind: where it is written, what the driver
+said it wrote, and the position every capture is kept as.
 
-``output.py`` names the run folder and files a capture's record;
+``output.py`` names the experiment folder and the ``run_NN`` folder of each
+run of each step, and files a capture's record;
 ``positions.py`` converts each capture, the moment it lands, into one
 position of its own, in the format chosen on the Connect step (an OME-TIFF
 file or an OME-Zarr image) -- its channels, its planes, and a few

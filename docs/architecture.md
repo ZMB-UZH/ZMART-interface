@@ -222,6 +222,19 @@ an OME-TIFF carries the very description its OME-Zarr twin would have, in
 ZMART's note inside its OME-XML. The format also goes to the driver in the
 connection, so a driver that saves positions itself saves them the same way.
 `storage/positions.py` is the one place that knows the two formats apart.
+
+Every run of a step -- a focus map, an overview scan, a target run, and each
+rerun -- gets a numbered folder of its own, `<type>/run_NN`, with focussing
+split by what it focusses for (`focussing/overview/run_NN`,
+`focussing/targets/run_NN`). `storage/output.py` decides the folders: it
+keeps the current run of each type, and `prepare_acquisition` hands it to the
+driver as the capture's `output_folder`, so the controller and the drivers
+need nothing new. A new run is begun by `bridge/pictures.py`'s `begin_a_run`,
+which tells the viewer service to stop announcing the earlier run's folder;
+nothing is deleted. Measuring some focus points again, or taking one target
+again, stays in the current run, and a label taken again is shown only by its
+newest position.
+
 The viewer's server, started beside
 the run by `storage/viewer_service.py`, links each acquisition's positions
 into one live picture and serves it to the page's drawing engine. Focus

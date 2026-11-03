@@ -1,6 +1,7 @@
 """The focus map, one stack at a time: the page drives, the bridge files and scores.
 
-Begin clears the focussing acquisition and names the stacks; the page
+Begin starts a focus run when the whole map is measured, or stays in the
+current one when only some points are, and names the stacks; the page
 drives and captures each; score files the stack, scores it through the
 warm analysis and answers the point; end closes the map. The ledger of the
 points scored so far is ``ledgers.focus``.
@@ -11,8 +12,14 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
+import json
+import os
+import time
+from pathlib import Path
+
 from ..analysis import focus_score, warm
 from ..microscope.focus_run import FOCUSSING, measure_one_stack
+from ..storage import output
 from ..storage.output import position_label, prepare_acquisition
 from . import ledgers, pictures, stage, state, views
 
@@ -28,8 +35,15 @@ def score_a_stack():
 
 
 def begin_focus(asked: dict) -> dict:
-    """The page begins a focus map: the focussing acquisition is cleared, the
-    ledger emptied, and the stacks named in order.
+    """The page begins measuring: the whole map, or some of its points.
+
+    Measuring the whole map starts a new focus run,
+    ``focussing/overview/run_NN``. Measuring some points again, or only the
+    points added since, stays in the current run: ``at`` names those points
+    by their place in the map, and each keeps its own label, so point 7 is
+    ``...P000007`` however often it is measured. A point's new stack stands
+    beside its earlier one, and the map uses the new one. ``settings`` is
+    what the stacks are taken with; it goes into the run's record.
 
     The page drives every point itself from here -- ``/api/xyz``, then
     ``/api/acquire`` with the label named here, then ``/api/focus/score`` --
@@ -40,13 +54,19 @@ def begin_focus(asked: dict) -> dict:
     if ledgers.a_run_has_the_stage():
         raise RuntimeError("the instrument is driving a run; a focus map cannot begin now")
     of = int(asked.get("of", 0))
-    # Measuring the map again replaces the map: the stacks of the last run
-    # would otherwise stand beside the new ones under the same heading.
-    pictures.replace_the_acquisition(FOCUSSING)
+    at = asked.get("at")
+    if at is None or output.current_run(state.the_run(), FOCUSSING) is None:
+        at = list(range(of)) if at is None else at
+        pictures.begin_a_run(FOCUSSING, settings=asked.get("settings"))
+        focus_map.clear()
+    at = [int(index) for index in at]
+    if len(at) != of:
+        raise ValueError(f"{of} points are to be measured, but {len(at)} places in the map were named")
     ledgers.focus.update(
-        running=True, done=0, of=of, error=None, stopped=False, points=[], doing=None,
+        running=True, done=0, of=of, error=None, stopped=False, points=[], doing=None, at=at,
+        settings=asked.get("settings"),
     )
-    return {**dict(ledgers.focus), "labels": [position_label(index) for index in range(of)]}
+    return {**dict(ledgers.focus), "labels": [position_label(index) for index in at]}
 
 
 def score_focus(asked: dict) -> dict:
@@ -65,7 +85,9 @@ def score_focus(asked: dict) -> dict:
     # The interface's own grouping, from what it asked for (see ``state.records``).
     record["acquisition_type"] = FOCUSSING
     point = dict(asked.get("point") or {})
-    index = len(ledgers.focus["points"])
+    # The point's place in the map, which names its stack: the same point
+    # measured again keeps its label.
+    index = ledgers.focus["at"][len(ledgers.focus["points"])]
     measurement = measure_one_stack(
         record, x=float(point["x"]), y=float(point["y"]), centre=float(asked["centre"]),
         score=score_a_stack(), index=index,
@@ -89,7 +111,55 @@ def score_focus(asked: dict) -> dict:
     }
     ledgers.focus["points"].append(landed)
     ledgers.focus["done"] = len(ledgers.focus["points"])
+    the_map_changed(index, landed, measurement)
     return landed
+
+
+#: The focus map as it stands in the current run, point by point: what
+#: ``focus_map.json`` in the run's folder says.
+focus_map: dict[int, dict] = {}
+
+
+def the_map_changed(index: int, landed: dict, measurement: dict) -> None:
+    """Write ``focus_map.json`` again: every point, where it is, its height and its stack.
+
+    A point measured again keeps the stacks it had before under
+    ``superseded``, so the record says both which stack the map uses now and
+    which were taken before it.
+    """
+    folder = output.current_run(state.the_run(), FOCUSSING)
+    if folder is None:
+        return
+    stack = measurement.get("position_path")
+    earlier = focus_map.get(index)
+    superseded = list(earlier.get("superseded", [])) if earlier else []
+    if earlier and earlier.get("stack"):
+        superseded.append(earlier["stack"])
+    focus_map[index] = {
+        "point": index,
+        "label": position_label(index),
+        "x_um": landed.get("x"), "y_um": landed.get("y"),
+        "z_um": None if landed.get("lost") else landed.get("z"),
+        "found": not landed.get("lost"),
+        "stack": _relative(stack, folder),
+        "superseded": superseded,
+        "taken_with": ledgers.focus.get("settings"),
+        "measured": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+    }
+    said = {"points": [focus_map[key] for key in sorted(focus_map)]}
+    writing = folder / ".focus_map.writing.json"
+    writing.write_text(json.dumps(said, indent=2, default=str), encoding="utf-8")
+    os.replace(writing, folder / "focus_map.json")
+
+
+def _relative(path, folder) -> str | None:
+    """*path* as seen from *folder*, so the record stays true when the experiment is moved."""
+    if not path:
+        return None
+    try:
+        return Path(path).relative_to(folder).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def stop_focus() -> dict:
@@ -110,4 +180,5 @@ def stop_focus() -> dict:
 def end_focus(asked: dict) -> dict:
     """The page ends the map, stopped by its hand or complete."""
     ledgers.focus.update(running=False, doing=None, stopped=bool(asked.get("stopped")))
+    pictures.end_the_run(FOCUSSING, stopped=bool(asked.get("stopped")))
     return dict(ledgers.focus)

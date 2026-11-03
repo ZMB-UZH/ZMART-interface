@@ -16,7 +16,7 @@ import json
 import threading
 
 from ..analysis import detection, warm
-from ..storage.output import free_name
+from ..storage.output import free_name, prepare_acquisition
 from . import ledgers, plots, state
 
 
@@ -156,11 +156,11 @@ def the_targets(since: int | None = None) -> dict:
 def keep_targets(cells: list, record: dict) -> None:
     """Write what was found beside the field it was found in.
 
-    ``<acquisition>/analysis``, next to the ``data`` the objects came from, the
-    way a focus curve is kept: without this the only copy is on the operator's
-    screen, and it goes when the window does.
+    ``<type>/run_NN/analysis``, next to the ``data`` the objects came from,
+    the way a focus curve is kept: without this the only copy is on the
+    operator's screen, and it goes when the window does.
     """
-    where = state.the_run() / record["acquisition_type"] / "analysis"
+    where = prepare_acquisition(state.the_run(), record["acquisition_type"]) / "analysis"
     where.mkdir(parents=True, exist_ok=True)
     kept = free_name(where, f"{record['acquisition_type']}_{record['position_label']}", "_T000000_targets.json")
     kept.write_text(json.dumps(cells, indent=2), encoding="utf-8")

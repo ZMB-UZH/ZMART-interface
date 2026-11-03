@@ -154,7 +154,7 @@ def test_a_capture_from_another_microscope_is_kept_as_a_position(capture, run):
     attributes = json.loads((store / "zarr.json").read_text())["attributes"]
     multiscale = attributes["ome"]["multiscales"][0]
     assert [axis["name"] for axis in multiscale["axes"]][-2:] == ["y", "x"]
-    assert all(Path(plane["path"]).parent == run / "overview" for plane in record["planes"])
+    assert all(Path(plane["path"]).parent == run / "overview" / "run_01" for plane in record["planes"])
 
 
 def test_a_stack_from_another_microscope_keeps_its_depths(capture, run):

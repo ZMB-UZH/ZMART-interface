@@ -260,6 +260,8 @@ export interface Backend {
     metric?: string; extent?: [number, number]; state?: Record<string, unknown> | null;
     onPoint?(point: FocusPoint, index: number): void; onDoing?: Doing;
     beginAt?(index: number): number | null | undefined;
+    /** The points' places in the map, when only some are measured: they stay in the current focus run. */
+    at?: number[];
   }): Promise<{ points: FocusPoint[]; stopped: boolean }>;
   stopFocusMeasure(): Promise<{ stopped: boolean }>;
   discoverTargets(how?: {
@@ -277,6 +279,8 @@ export interface Backend {
   acquireTargets(how: {
     positions: TargetPosition[]; state?: Record<string, unknown> | null; append?: boolean;
     focus?: TargetFocus | null; zOffsetUm?: number; ms?: number;
+    /** Why these targets were chosen, kept with the targets run as `selection.json`. */
+    selection?: Record<string, unknown> | null;
     onProgress?(done: number, of: number, at: { x: number; y: number; z: number | null }, records: CaptureRecord[]): void;
     onDoing?: Doing;
   }): Promise<{ done: number; of: number; records: CaptureRecord[]; stopped: boolean }>;

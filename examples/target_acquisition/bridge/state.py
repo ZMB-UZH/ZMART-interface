@@ -86,6 +86,12 @@ def the_run() -> Path:
 #: list, and the overview's view filled with the targets' pictures.
 records: dict[str, list] = {}
 
+#: The position shown on the canvas for each label, by (kind, label), in the
+#: current run of each kind. A label taken again in the same run -- one focus
+#: point measured again -- names its new position here, and the earlier one
+#: stops being shown while it stays on disk.
+shown_positions: dict[tuple[str, str], str] = {}
+
 #: Copies drawn with a display, by (kind, label, the display as asked), in
 #: the order they were last used and no more than ``pictures.DISPLAYED_KEPT``
 #: of them; a scan start empties it, since the pixels behind a label may change.

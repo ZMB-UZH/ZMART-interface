@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from .output import (
+    current_run,
+    end_a_run,
     free_name,
     move_record_images,
     position_label,
     prepare_acquisition,
     prepare_experiment,
     run_hash,
+    start_a_run,
 )
 
 
@@ -21,8 +26,35 @@ def test_exact_experiment_and_acquisition_layout(tmp_path):
     acquisition = prepare_acquisition(experiment, "overview")
 
     assert experiment == tmp_path / "ZMART-microscopy/organoid-screen_abc123"
-    assert acquisition == experiment / "overview"
+    assert acquisition == experiment / "overview" / "run_01"
     assert acquisition.is_dir()
+
+
+def test_each_run_of_a_step_gets_its_own_numbered_folder(tmp_path):
+    """A rerun, or a run after an interrupt, never writes into an earlier run."""
+    experiment = prepare_experiment(tmp_path, "screen", hash6="abc123")
+    first = start_a_run(experiment, "overview", settings={"fields": 4})
+    second = start_a_run(experiment, "overview")
+
+    assert (first.name, second.name) == ("run_01", "run_02")
+    assert prepare_acquisition(experiment, "overview") == second == current_run(experiment, "overview")
+    said = json.loads((first / "attempt.json").read_text(encoding="utf-8"))
+    assert said["settings"] == {"fields": 4} and said["ended"] is None
+    end_a_run(experiment, "overview", "stopped")
+    said = json.loads((second / "attempt.json").read_text(encoding="utf-8"))
+    assert said["how_it_ended"] == "stopped" and said["ended"]
+
+
+def test_focussing_is_one_folder_split_by_what_it_focusses_for(tmp_path):
+    """The focus map and each target's own stacks; a target focussing run takes its targets run's number."""
+    experiment = prepare_experiment(tmp_path, "screen", hash6="abc123")
+    start_a_run(experiment, "targets")
+    start_a_run(experiment, "targets")
+    targets_focus = start_a_run(experiment, "target-focussing")
+    the_map = start_a_run(experiment, "focussing")
+
+    assert targets_focus == experiment / "focussing" / "targets" / "run_02"
+    assert the_map == experiment / "focussing" / "overview" / "run_01"
 
 
 def test_location_label_has_exact_widths_and_rejects_overflow():

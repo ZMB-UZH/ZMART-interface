@@ -115,6 +115,14 @@ export function runAcquisition(page: TaPage, s: TaStep, { targetTiles = null, ap
     /* On top of the height each target would be taken at, map or peak. */
     zOffsetUm: state.targetZOffsetUm || 0,
     append,
+    /* Why these targets: the gates and the objects that passed them, kept
+       with the new targets run. One target taken again changes nothing. */
+    selection: append ? null : {
+      gates: state.gates.map((g) => ({ fx: g.fx, fy: g.fy, vertices: g.vertices.map(([x, y]) => [x, y]) })),
+      objects: [...state.gated],
+      detect: JSON.parse(JSON.stringify(state.detect)),
+      placing: JSON.parse(JSON.stringify(state.placing)),
+    },
     state: activeRecording(state.targetType)?.changeable ?? null,
     focus: state.targetFocusOn ? {
       state: activeRecording(state.targetFocus)?.changeable ?? null,

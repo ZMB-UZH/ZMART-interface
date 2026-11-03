@@ -324,15 +324,21 @@ export const backend: Backend = {
    * just found there. A height it gives wins over the point's own `startZ`;
    * no answer leaves `startZ` as it was.
    */
-  async measureFocus(points: FocusAsk[], { metric, state = null, onPoint, onDoing, beginAt }: {
+  async measureFocus(points: FocusAsk[], { metric, state = null, onPoint, onDoing, beginAt, at }: {
     metric?: string; extent?: [number, number]; state?: Record<string, unknown> | null;
     onPoint?(point: FocusPoint, index: number): void; onDoing?(doing: string | null): void;
-    beginAt?(index: number): number | null | undefined;
+    beginAt?(index: number): number | null | undefined; at?: number[];
   } = {}) {
     void metric; // which curve decides is the page's rule, applied to what comes back
     focusStopAsked = false;
     if (state) await ask(`${OURS}/state`, state);
-    const { labels } = await ask<{ labels: string[] }>(`${OURS}/focus/begin`, { of: points.length });
+    /* `at` names the points by their place in the map when only some are
+       measured (one again, or the new ones): they stay in the current focus
+       run and keep their labels. Without it the whole map is measured, which
+       starts a new run. */
+    const { labels } = await ask<{ labels: string[] }>(`${OURS}/focus/begin`, {
+      of: points.length, ...(at ? { at } : {}), settings: state,
+    });
     const measured: FocusPoint[] = [];
     let stopped = false;
     try {
@@ -506,16 +512,21 @@ export const backend: Backend = {
    * leaves the target at the map's height, and the record says so.
    */
   async acquireTargets({
-    positions, state = null, append = false, focus = null, zOffsetUm = 0, onProgress, onDoing,
+    positions, state = null, append = false, focus = null, zOffsetUm = 0, selection = null, onProgress, onDoing,
   }: {
     positions: TargetPosition[];
     state?: Record<string, unknown> | null; append?: boolean;
     focus?: TargetFocus | null; zOffsetUm?: number;
+    /* Why these targets were chosen -- the gates and the objects that passed
+       them -- kept with the targets run as `selection.json`. */
+    selection?: Record<string, unknown> | null;
     onProgress?(done: number, of: number, at: { x: number; y: number; z: number | null }, records: CaptureRecord[]): void;
     onDoing?(doing: string | null): void;
   }) {
     targetsStopAsked = false;
-    const { labels } = await ask<{ labels: string[] }>(`${OURS}/targets/acquire/begin`, { positions, append });
+    const { labels } = await ask<{ labels: string[] }>(`${OURS}/targets/acquire/begin`, {
+      positions, append, ...(selection ? { selection } : {}),
+    });
     if (!focus && state) await ask(`${OURS}/state`, state);
     const records: CaptureRecord[] = [];
     let stopped = false;
