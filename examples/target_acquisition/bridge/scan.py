@@ -18,7 +18,6 @@ import time
 from ..microscope.focus_run import as_state
 from ..storage import output
 from ..storage.output import position_label, prepare_acquisition
-from ..storage.positions import name_of_a_position
 from . import ledgers, pictures, stage, state
 
 
@@ -125,6 +124,13 @@ def scan_worker(
         ledgers.scan["error"] = str(why)
     finally:
         ledgers.scan["running"] = False
+        try:
+            pictures.end_the_run(
+                acquisition_type, stopped=bool(ledgers.scan.get("stopped")),
+                failed=bool(ledgers.scan.get("error")),
+            )
+        except Exception:  # noqa: BLE001 -- the record of how it ended is not worth a crash
+            pass
 
 
 def label_for(index: int, position: dict) -> str:
@@ -169,15 +175,10 @@ def start_one_scan(asked: dict) -> dict:
     state.require_session()
     positions = asked.get("positions", [])
     state.records[acquisition_type] = []
-    pictures.replace_the_acquisition(
-        acquisition_type,
-        keeping={
-            name_of_a_position(acquisition_type, label_for(i, p), state.image_format)
-            for i, p in enumerate(positions)
-        },
-    )
-    for key in [key for key in state.displayed_pictures if key[0] == acquisition_type]:
-        del state.displayed_pictures[key]
+    # Every scan is a run of its own: ``<type>/run_NN``, beside the earlier ones.
+    pictures.begin_a_run(acquisition_type, settings={
+        "fields": len(positions), "recorded_state": asked.get("state"), "format": state.image_format,
+    })
     ledgers.stop_asked["scan"] = False
     planned = asked.get("planned") or positions
     ledgers.scan.update(

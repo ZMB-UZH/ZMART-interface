@@ -26,7 +26,7 @@ from zmart_controller.template.zmart_controller_plugin.zmart_controller_plugin i
 )
 
 from ..microscope.instrument import Instrument  # noqa: E402
-from ..storage import viewer_service  # noqa: E402
+from ..storage import output, viewer_service  # noqa: E402
 from ..storage.jpeg_tiles import make_what_is_missing  # noqa: E402
 from . import pictures, state  # noqa: E402
 
@@ -105,7 +105,7 @@ def test_a_tiff_capture_is_still_converted(run, announced, monkeypatch):
 
     pictures.keep_the_position(record, "overview")
 
-    assert converted == [run / "positions" / "overview"]
+    assert converted == [run / "overview" / "run_01" / "positions"]
 
 
 def test_the_small_picture_is_drawn_from_the_store(tmp_path):
@@ -122,41 +122,37 @@ def test_the_small_picture_is_drawn_from_the_store(tmp_path):
     assert tile["x0"] + tile["w"] / 2 == pytest.approx(100.0)
 
 
-def test_a_rerun_stops_showing_the_drivers_positions_but_never_deletes_them(run, monkeypatch):
-    store = a_driver_store(
-        run / "overview" / "data", "overview_000001_A1.ome.zarr", np.zeros((1, 1, 1, 8, 8), np.uint16)
-    )
-    forgotten = []
-    monkeypatch.setattr(viewer_service, "forget_stores", lambda kind, keeping: forgotten.append((kind, keeping)))
-    monkeypatch.setattr(viewer_service, "stores_were_retired", lambda kind, folder: None)
+def test_a_rerun_starts_a_new_run_and_never_deletes_the_drivers_positions(run, monkeypatch):
+    began = []
+    monkeypatch.setattr(viewer_service, "a_run_began", began.append)
+    earlier = output.prepare_acquisition(run, "overview")
+    store = a_driver_store(earlier / "data", "overview_000001_A1.ome.zarr", np.zeros((1, 1, 1, 8, 8), np.uint16))
 
-    pictures.replace_the_acquisition("overview", keeping=set())
+    later = pictures.begin_a_run("overview")
 
     assert store.is_dir(), "a driver's store is the capture itself, and stays"
-    assert forgotten == [("overview", set())]
+    assert (earlier.name, later.name) == ("run_01", "run_02")
+    assert began == ["overview"], "the viewer stops showing the earlier run"
 
 
-def test_forgetting_drops_a_kinds_stores_from_what_the_viewer_is_handed(monkeypatch, tmp_path):
+def test_a_new_run_drops_only_its_own_kinds_stores_from_what_the_viewer_is_handed(monkeypatch, tmp_path):
     monkeypatch.setitem(viewer_service._viewer, "source_versions", {
         ("overview", "overview_000001_A1.ome.zarr"): 1,
-        ("overview", "overview_x_A2.ome.zarr"): 2,
         ("targets", "targets_000002_T1.ome.zarr"): 1,
     })
     monkeypatch.setitem(viewer_service._viewer, "source_order", {
-        "overview": ["overview_000001_A1.ome.zarr", "overview_x_A2.ome.zarr"],
-        "targets": ["targets_000002_T1.ome.zarr"],
+        "overview": ["overview_000001_A1.ome.zarr"], "targets": ["targets_000002_T1.ome.zarr"],
     })
-    monkeypatch.setitem(viewer_service._viewer, "folder_types", {str(tmp_path / "data"): "overview"})
-    monkeypatch.setitem(viewer_service._viewer, "pending", set())
-    monkeypatch.setitem(viewer_service._viewer, "wake", type("Wake", (), {"set": lambda self: None})())
+    monkeypatch.setitem(viewer_service._viewer, "folder_types", {
+        str(tmp_path / "overview"): "overview", str(tmp_path / "targets"): "targets",
+    })
+    monkeypatch.setitem(viewer_service._viewer, "pending", {str(tmp_path / "overview")})
 
-    viewer_service.forget_stores("overview", keeping={"overview_x_A2.ome.zarr"})
+    viewer_service.a_run_began("overview")
 
-    assert set(viewer_service._viewer["source_versions"]) == {
-        ("overview", "overview_x_A2.ome.zarr"), ("targets", "targets_000002_T1.ome.zarr"),
-    }
-    assert viewer_service._viewer["source_order"]["overview"] == ["overview_x_A2.ome.zarr"]
-    assert viewer_service._viewer["pending"] == {str(tmp_path / "data")}
+    assert set(viewer_service._viewer["source_versions"]) == {("targets", "targets_000002_T1.ome.zarr")}
+    assert viewer_service._viewer["folder_types"] == {str(tmp_path / "targets"): "targets"}
+    assert viewer_service._viewer["pending"] == set()
 
 
 class FakeSession:
@@ -185,9 +181,9 @@ def test_the_driver_is_given_the_acquisition_type_and_the_runs_folder_for_it(tmp
 
     assert session.asked == {
         "position_label": "K00_M000000_G000000_P000001_V00", "acquisition_settings": None,
-        "acquisition_type": "overview", "output_folder": str(instrument.run / "overview"),
+        "acquisition_type": "overview", "output_folder": str(instrument.run / "overview" / "run_01"),
     }
-    assert (instrument.run / "overview").is_dir()
+    assert (instrument.run / "overview" / "run_01").is_dir()
     assert answer == {"success": True, "output": {
         "position_label": "K00_M000000_G000000_P000001_V00", "acquisition_type": "overview",
         "files": [], "planes": [],

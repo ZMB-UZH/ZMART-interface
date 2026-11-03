@@ -60,10 +60,10 @@ def test_the_pictures_of_a_kind_are_only_ever_inside_the_run(run_and_a_bystander
     with pytest.raises(ValueError, match="acquisition_type"):
         pictures.view_of(name)
     with pytest.raises(ValueError, match="acquisition_type"):
-        pictures.replace_the_acquisition(name)
+        pictures.begin_a_run(name)
 
 
 def test_an_ordinary_kind_is_still_a_folder_in_the_run(run_and_a_bystander):
     run, _ = run_and_a_bystander
-    assert pictures.view_of("overview") == run / "overview" / pictures.VIEW
-    assert pictures.view_of("focussing") == run / "focussing" / pictures.VIEW
+    assert pictures.view_of("overview") == run / "overview" / "run_01" / pictures.VIEW
+    assert pictures.view_of("focussing") == run / "focussing" / "overview" / "run_01" / pictures.VIEW

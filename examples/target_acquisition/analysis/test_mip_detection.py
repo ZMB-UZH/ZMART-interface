@@ -60,13 +60,13 @@ def test_real_detector_sees_objects_outside_middle_plane(tmp_path, depth):
     read = read if read.ndim == 2 else read[..., 0]
     assert read[20, 20] == 10000
     assert read[44, 44] == 20000
-    # Rerunning the same position path must consume its rewritten stack.
+    # The same position taken again lands beside the first, and detection reads the new one.
     for i, plane in enumerate(record["planes"]):
         image = np.zeros((64, 64), np.uint16)
         if i == 0:
             image[(xx - 32) ** 2 + (yy - 32) ** 2 < 7**2] = 15000
         tifffile.imwrite(plane["path"], image)
-    assert str(position_from_record(record, tmp_path / "positions", format="ome-zarr")) == record["position_path"]
+    record["position_path"] = str(position_from_record(record, tmp_path / "positions", format="ome-zarr"))
     rewritten = segmented(record["position_path"], "max")
     assert rewritten["masks"][32, 32] > 0
     assert rewritten["masks"][20, 20] == rewritten["masks"][44, 44] == 0

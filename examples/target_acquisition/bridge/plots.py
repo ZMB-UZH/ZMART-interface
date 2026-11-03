@@ -4,19 +4,36 @@ A plot (``pca`` or ``umap``) is a ZMART-analysis pipeline run by the warm
 analysis in an environment of its own, so the picture server beside it
 never waits; the page polls, then asks for the two columns by object id.
 
+Both live in the overview run they describe, ``overview/run_NN/analysis``.
+Every plot computed is also kept under its own number in
+``analysis/plots`` (``umap_01.csv``, ``umap_02.csv``, ...) with a note of
+which objects it covers, and never overwritten: a UMAP can come out
+differently each time it is computed, and the targets' ``selection.json``
+names the very plot their gates were drawn on.
+
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 """
 
 from __future__ import annotations
 
+import json
+import shutil
 import threading
 import time
 from pathlib import Path
 
 from ..analysis import warm
-from ..storage.output import run_hash
+from ..storage.output import prepare_acquisition, run_hash
 from . import ledgers, state
+
+#: The plot of each kind computed last, by its numbered file.
+latest: dict[str, Path] = {}
+
+
+def the_analysis_folder() -> Path:
+    """``analysis`` in the current overview run: where its objects and plots are kept."""
+    return prepare_acquisition(state.the_run(), "overview") / "analysis"
 
 
 def the_population_table() -> Path:
@@ -24,7 +41,7 @@ def the_population_table() -> Path:
     records = state.records.get("overview") or []
     if not records:
         raise RuntimeError("no overview has been scanned")
-    return state.the_run() / "overview" / "analysis" / f"overview_{run_hash(state.the_run())}_objects.csv"
+    return the_analysis_folder() / f"overview_{run_hash(state.the_run())}_objects.csv"
 
 
 #: The ZMART-analysis pipeline that draws a multidimensional plot of the
@@ -78,6 +95,7 @@ def plot_worker(kind: str, table: Path, ids: list[str] | None) -> None:
     began = time.perf_counter()
     try:
         answered = plot_through_the_analysis(kind, table, ids)
+        keep_the_plot(kind, table, ids)
         ledgers.plots.update(kinds=sorted(answered["written"]), objects=answered["objects"])
     except Exception as why:  # noqa: BLE001 -- the page shows the sentence
         if ledgers.plots_stop["asked"]:
@@ -88,6 +106,27 @@ def plot_worker(kind: str, table: Path, ids: list[str] | None) -> None:
             ledgers.plots["error"] = str(why)
     finally:
         ledgers.plots.update(running=False, doing=None, took_s=round(time.perf_counter() - began, 1))
+
+
+def keep_the_plot(kind: str, table: Path, ids: list[str] | None) -> None:
+    """Keep the plot just computed under its own number, with a note of what it covers."""
+    written = table.with_name(table.name.replace("_objects.csv", f"_{kind}.csv"))
+    if not written.is_file():
+        return
+    plots = table.parent / "plots"
+    plots.mkdir(parents=True, exist_ok=True)
+    number = 1
+    while (plots / f"{kind}_{number:02d}.csv").exists():
+        number += 1
+    kept = plots / f"{kind}_{number:02d}.csv"
+    shutil.copyfile(written, kept)
+    (plots / f"{kind}_{number:02d}.json").write_text(json.dumps({
+        "kind": kind,
+        "objects": "all" if ids is None else ids,
+        "from": table.name,
+        "computed": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+    }, indent=2), encoding="utf-8")
+    latest[kind] = kept
 
 
 def stop_plot() -> dict:
@@ -132,7 +171,7 @@ def keep_the_population(fields: list) -> None:
     """
     import csv  # noqa: PLC0415 -- the only use in this module
 
-    where = state.the_run() / "overview" / "analysis"
+    where = the_analysis_folder()
     where.mkdir(parents=True, exist_ok=True)
     measured = sorted({
         name for result in fields for cell in result["cells"]

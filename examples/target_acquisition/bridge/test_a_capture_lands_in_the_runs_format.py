@@ -53,9 +53,10 @@ def test_a_stack_in_an_ome_tiff_run_lands_as_one_file_with_its_projection(
 
     assert "position_error" not in record
     position = Path(record["position_path"])
-    assert position.parent == run / "positions" / "focussing"
+    the_run = run / "focussing" / "overview" / "run_01"
+    assert position.parent == the_run / "positions"
     assert positions.format_of(position) == "ome-tiff"
-    projection = run / "focussing" / "projections" / position.name
+    projection = the_run / "projections" / position.name
     assert positions.format_of(projection) == "ome-tiff"
     assert record["frame_um"] == pytest.approx(positions.frame_um_of(position))
     assert announced == [("focussing", position.parent, position, projection.parent)]
@@ -69,7 +70,7 @@ def test_a_single_plane_is_its_own_projection(run, announced, monkeypatch, tmp_p
 
     position = Path(record["position_path"])
     assert announced == [("overview", position.parent, position, position.parent)]
-    assert not (run / "overview" / "projections").exists(), "nothing is written twice"
+    assert not (run / "overview" / "run_01" / "projections").exists(), "nothing is written twice"
 
 
 def test_an_ome_zarr_run_lands_as_before(run, announced, monkeypatch, tmp_path):
@@ -108,20 +109,23 @@ def test_a_tiff_position_the_driver_saved_is_used_as_it_is(run, announced, monke
     assert projections_in == run / "focussing" / "projections"
 
 
-def test_a_rerun_removes_stale_tiff_positions_and_their_projections(run, monkeypatch, tmp_path):
+def test_a_rerun_keeps_the_earlier_runs_positions_and_projections(run, monkeypatch, tmp_path):
+    """A new run never deletes an earlier one: both stay on disk, each in its own folder."""
     monkeypatch.setattr(state, "image_format", "ome-tiff")
     monkeypatch.setattr(viewer_service, "a_position_landed", lambda *args, **kwargs: None)
-    monkeypatch.setattr(viewer_service, "stores_were_retired", lambda kind, folder: None)
-    monkeypatch.setattr(viewer_service, "forget_stores", lambda kind, keeping: None)
+    monkeypatch.setattr(viewer_service, "a_run_began", lambda kind: None)
     (tmp_path / "raw").mkdir()
     record = a_z_stack(tmp_path / "raw")
     pictures.keep_the_position(record, "focussing")
     position = Path(record["position_path"])
-    projection = run / "focussing" / "projections" / position.name
+    projection = position.parent.parent / "projections" / position.name
 
-    pictures.replace_the_acquisition("focussing", keeping=set())
+    pictures.begin_a_run("focussing")
+    pictures.keep_the_position(a_z_stack(tmp_path / "raw"), "focussing")
 
-    assert not position.exists() and not projection.exists()
+    assert position.exists() and projection.exists()
+    assert (run / "focussing" / "overview" / "run_02" / "positions").is_dir()
+
 
 
 def test_an_unknown_format_is_refused_before_anything_opens(monkeypatch):

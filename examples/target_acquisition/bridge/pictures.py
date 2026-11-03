@@ -17,7 +17,6 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 from __future__ import annotations
 
 import json
-import shutil
 import urllib.parse
 from pathlib import Path
 
@@ -25,20 +24,23 @@ from zmart_interface.framework.bridge.api import Bytes, Refusal
 
 from ..microscope.focus_run import FOCUSSING
 from ..storage import output, positions, viewer_service
-from . import ledgers, state
+from . import state
 
 
 def keep_the_position(record: dict, acquisition_type: str) -> None:
-    """The capture's own form: one position in ``positions/<acquisition type>/``,
-    made from the vendor's own files the moment they land, in the format the
-    run is saved in -- see :mod:`target_acquisition.storage.positions`.
-    The folder is named by the type because the viewer names the one picture
-    it links a folder into after the folder itself.
+    """The capture's own form: one position in the ``positions`` folder of its
+    run (``<type>/run_NN/positions``), made from the vendor's own files the
+    moment they land, in the format the run is saved in -- see
+    :mod:`target_acquisition.storage.positions`.
 
     An OME-TIFF position also gets its projection over z as an OME-TIFF, in
-    ``<acquisition type>/projections`` beside the data, unless the driver made
-    one: a person opens it to see the stack at a glance, and the viewer shows
-    it rather than making its own. (For OME-Zarr the viewer makes them.)
+    the run's ``projections`` folder, unless the driver made one: a person
+    opens it to see the stack at a glance, and the viewer shows it rather
+    than making its own. (For OME-Zarr the viewer makes them.)
+
+    A position taken again under the same label in the same run -- one focus
+    point measured again, one target taken again -- stands beside the earlier
+    one on disk, and only the newest is shown.
 
     A conversion that fails is filed on the record rather than felling the
     scan: the vendor's files are on disk and the conversion can be run again,
@@ -61,7 +63,7 @@ def keep_the_position(record: dict, acquisition_type: str) -> None:
             elif one_plane:
                 projections_in = folder
         else:
-            folder = state.the_run() / "positions" / acquisition_type
+            folder = output.prepare_acquisition(state.the_run(), acquisition_type) / "positions"
             record["position_path"] = str(
                 positions.position_from_record(record, folder, format=state.image_format)
             )
@@ -69,7 +71,7 @@ def keep_the_position(record: dict, acquisition_type: str) -> None:
             if one_plane:
                 projections_in = folder
             else:
-                projections_in = state.the_run() / acquisition_type / "projections"
+                projections_in = folder.parent / "projections"
                 positions.write_a_projection(record["position_path"], projections_in)
         # The frame's true width on the sample. A recording made before the
         # run says what was promised; the instrument may have stood on
@@ -79,6 +81,13 @@ def keep_the_position(record: dict, acquisition_type: str) -> None:
     except Exception as why:  # noqa: BLE001 -- filed, not fatal
         record["position_error"] = str(why)
         return
+    # The same label taken again in this run: the earlier capture stays on
+    # disk, and the canvas shows only the new one.
+    shown = (acquisition_type, record.get("position_label"))
+    earlier = state.shown_positions.get(shown)
+    state.shown_positions[shown] = Path(record["position_path"]).name
+    if earlier and earlier != state.shown_positions[shown]:
+        viewer_service.forget_a_store(acquisition_type, earlier)
     # The viewer beside this bridge links the folder into one live picture;
     # the first position of a kind opens it, the rest ring the doorbell.
     viewer_service.a_position_landed(
@@ -100,9 +109,9 @@ def the_drivers_position(record: dict) -> Path | None:
     return position if positions.is_a_position(position) else None
 
 
-#: Where a scan's display copies go: beside ``data``, under the acquisition
-#: type. They are made *from* the pixels rather than being pixels, which is
-#: what puts them next to ``data`` instead of inside it.
+#: Where a scan's display copies go: beside ``data``, in the run's own folder.
+#: They are made *from* the pixels rather than being pixels, which is what
+#: puts them next to ``data`` instead of inside it.
 VIEW = "view"
 
 
@@ -161,12 +170,12 @@ def a_picture_as_displayed(acquisition_type: str, label: str, display: list) -> 
 
 
 def view_of(acquisition_type: str) -> Path:
-    """Where this kind of scan's pictures are, in this run's own folder.
+    """Where this kind of scan's pictures are: in the folder of its current run.
 
     The kind arrives from the page, so it is checked to be a plain folder
-    name first: anything else could name a folder outside the run.
+    name first: anything else could name a folder outside the experiment.
     """
-    return state.the_run() / output.checked_name(acquisition_type, field="acquisition_type") / VIEW
+    return output.prepare_acquisition(state.the_run(), acquisition_type) / VIEW
 
 
 def the_view_of(acquisition_type: str) -> Path | None:
@@ -280,46 +289,26 @@ def the_middle_of(record: dict) -> tuple:
     return float(first["x_um"]), float(first["y_um"])
 
 
-def replace_the_acquisition(acquisition_type: str, keeping: set[str] = frozenset()) -> None:
-    """A scan of this kind is starting again: what the new run will not rewrite goes.
+def begin_a_run(acquisition_type: str, *, settings=None) -> Path:
+    """A step of this kind starts acquiring again: it gets a run folder of its own.
 
-    The records were already forgotten, but the position stores and the
-    display copies stayed on disk, and the viewer kept listing every store it
-    had once seen. A shorter rerun therefore showed the fields the new run
-    never captured. ``keeping`` names the stores the new run will write
-    again; those stay and are replaced in place as each lands, which is what
-    lets the picture grow without being reopened. Any other store of this
-    kind is stale and is removed; the viewer service then leaves it out of
-    what the page is handed. The display copies are always made again, from
-    the new run's own records.
+    Nothing of the earlier run is overwritten or deleted. The canvas stops
+    showing it at once, and fills with the new run's captures as they land;
+    the earlier run stays on disk, in its own ``run_NN`` folder, as a record
+    of what was done. ``settings`` go into the new run's ``attempt.json``.
     """
-    run = state.the_run()
-    # Checked before the first deletion: this removes folders by a name the
-    # page chose, and an absolute path in its place replaced the run folder.
     kind = output.checked_name(acquisition_type, field="acquisition_type")
-    folder = run / "positions" / kind
-    stale = [
-        child for child in (folder.iterdir() if folder.is_dir() else [])
-        if positions.is_a_position_name(child.name) and child.name not in keeping
-    ]
-    if stale:
-        for child in stale:
-            # With it goes the projection the interface made of it, if any.
-            for one in (child, run / kind / "projections" / child.name):
-                if one.is_dir():
-                    shutil.rmtree(one, ignore_errors=True)
-                else:
-                    one.unlink(missing_ok=True)
-        viewer_service.stores_were_retired(acquisition_type, folder)
-    # The stores a driver saved are the captures themselves, in ``data``:
-    # never deleted, only no longer shown.
-    viewer_service.forget_stores(acquisition_type, keeping=set(keeping))
-    # A store half-written when something crashed is in the shared staging
-    # folder beside the positions; swept only while nothing is writing there.
-    leftovers = [view_of(acquisition_type)]
-    if not ledgers.a_run_has_the_stage():
-        leftovers.append(folder.parent / ".writing")
-    for leftover in leftovers:
-        shutil.rmtree(leftover, ignore_errors=True)
+    folder = output.start_a_run(state.the_run(), kind, settings=settings)
+    viewer_service.a_run_began(kind)
+    state.shown_positions = {key: name for key, name in state.shown_positions.items() if key[0] != kind}
+    for key in [key for key in state.displayed_pictures if key[0] == kind]:
+        del state.displayed_pictures[key]
     with state.view_lock:
-        state.view_built.pop(acquisition_type, None)
+        state.view_built.pop(kind, None)
+    return folder
+
+
+def end_the_run(acquisition_type: str, *, stopped: bool = False, failed: bool = False) -> None:
+    """Say in the current run's ``attempt.json`` that it ended, and how."""
+    how = "failed" if failed else "stopped" if stopped else "finished"
+    output.end_a_run(state.the_run(), acquisition_type, how)

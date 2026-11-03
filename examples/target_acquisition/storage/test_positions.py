@@ -375,13 +375,14 @@ class TestAStoreIsPublishedWhole:
         position_from_record(record, positions, format="ome-zarr")
         assert seen_before_publication == [False]
 
-    def test_a_rerun_replaces_the_store_under_the_same_name(self, tmp_path):
+    def test_a_label_taken_again_stands_beside_the_earlier_store(self, tmp_path):
+        """Nothing is written over: the new capture takes the next free name."""
         record = one_file_per_plane(tmp_path / "capture", channels=1, size=64)
         positions = tmp_path / "positions" / "overview"
         first = position_from_record(record, positions, format="ome-zarr")
         record["planes"][0]["x_um"] = 4321.0
         second = position_from_record(record, positions, format="ome-zarr")
-        assert first == second
+        assert second.name == first.name.replace(".ome.zarr", "_001.ome.zarr")
         described = json.loads((second / "zarr.json").read_text(encoding="utf-8"))
         translation = described["attributes"]["ome"]["multiscales"][0]["datasets"][0][
             "coordinateTransformations"
@@ -389,8 +390,8 @@ class TestAStoreIsPublishedWhole:
         assert any(
             abs(one.get("translation", [0] * 5)[-1] - (4321.0 - 63 / 2 * 2.5)) < 1e-6
             for one in translation
-        ), "the replaced store carries the new capture's place"
-        assert sorted(child.name for child in positions.iterdir()) == [second.name]
+        ), "the new store carries the new capture's place"
+        assert sorted(child.name for child in positions.iterdir()) == [first.name, second.name]
         assert not (tmp_path / "positions" / ".writing").exists()
 
 

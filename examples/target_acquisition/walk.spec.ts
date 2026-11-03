@@ -828,10 +828,13 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       if (await page.locator('.step.done:has-text("Acquire Targets")').count()) {
         await walkTo(page, "Run protocol");
         await expect(page.locator(".panel.on button.step-run")).toBeEnabled();
-        /* The settings can be written as the protocol without a run. */
+        /* The settings can be written as the protocol without a run. Counted
+           against what was listed before, because both walks of this file share
+           one worker -- and so one protocol library -- when the first passes. */
+        const listedBefore = (await ask(page, PORT, "/api/target_acquisition/protocols")).protocols.length;
         await page.locator("#protocol-export").click();
         await expect(page.locator("#protocol-export-note")).toHaveText("protocol written");
-        expect((await ask(page, PORT, "/api/target_acquisition/protocols")).protocols).toHaveLength(1);
+        expect((await ask(page, PORT, "/api/target_acquisition/protocols")).protocols).toHaveLength(listedBefore + 1);
         /* And saved by name into the machine's library: listed with the run's. */
         await page.locator("#protocol-save-name").fill("walk kidney");
         await page.locator("#protocol-save").click();

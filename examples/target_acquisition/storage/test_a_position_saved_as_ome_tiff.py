@@ -124,13 +124,13 @@ def test_the_projection_is_the_brightest_of_every_plane_at_the_same_place(tmp_pa
     assert positions.format_of(projection) == "ome-tiff"
 
 
-def test_a_rerun_replaces_the_file_under_the_same_name(tmp_path):
+def test_a_label_taken_again_stands_beside_the_earlier_file(tmp_path):
     (tmp_path / "raw").mkdir()
     record = one_file_per_plane(tmp_path / "raw")
     first = positions.position_from_record(record, tmp_path / "tiff", format="ome-tiff")
     second = positions.position_from_record(record, tmp_path / "tiff", format="ome-tiff")
-    assert first == second
-    assert [path.name for path in (tmp_path / "tiff").iterdir()] == [first.name]
+    assert second.name == first.name.replace(".ome.tif", "_001.ome.tif")
+    assert sorted(path.name for path in (tmp_path / "tiff").iterdir()) == [first.name, second.name]
 
 
 def test_an_unknown_format_is_refused_by_name():

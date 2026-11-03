@@ -1,17 +1,33 @@
-"""Small, workflow-owned output layout helpers.
+"""Where an experiment's files go: its folder, and one folder per run of each step.
 
-The workflow owns experiment/acquisition folders, and gives a driver the
-acquisition's folder to save in. Inside it the driver owns the layout and the
-filenames, and returns the files it saved; this module only files those a
-driver saved in a place of its own, in the acquisition's folder, keeping the
+The workflow owns the experiment folder and the folders inside it, and gives
+a driver the folder to save each capture in. Inside that folder the driver
+owns the layout and the file names, and returns the files it saved; this
+module only files those a driver saved in a place of its own, keeping the
 layout and the names it gave them.
+
+Every time a step acquires again -- the first time, a rerun, or after an
+interrupt -- it gets a folder of its own, ``run_01``, ``run_02``, ..., inside
+the folder of what it acquires::
+
+    <experiment>_<hash>/
+      overview/run_01/              the overview scan
+      targets/run_01/               the targets
+      focussing/overview/run_01/    the focus map the overview is scanned with
+      focussing/targets/run_01/     each target's own focus stack
+
+Nothing of an earlier run is overwritten or deleted, and the canvas shows the
+newest run of each. Each run folder holds ``attempt.json``: when it started,
+when and how it ended, and the settings it ran with.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -75,12 +91,115 @@ def prepare_experiment(output_root: Any, experiment: str, *, hash6: str | None =
     return path
 
 
-def prepare_acquisition(experiment_root: Any, acquisition_type: str) -> Path:
-    """Create and return ``<experiment>/<acquisition_type>``, the folder a driver saves the acquisition in."""
+#: Where each kind of acquisition keeps its runs, inside the experiment folder.
+#: Focussing is one folder, split by what it focusses for: the focus map the
+#: overview is scanned with, and each target's own stack. Any other kind keeps
+#: its runs in a folder of its own name.
+WHERE_RUNS_GO = {
+    "focussing": ("focussing", "overview"),
+    "target-focussing": ("focussing", "targets"),
+}
 
-    folder = Path(experiment_root) / checked_name(acquisition_type, field="acquisition_type")
-    folder.mkdir(parents=True, exist_ok=True)
+#: The runs that the target focussing goes with: a target focussing run takes
+#: the number of the targets run it was taken for.
+RUNS_TAKEN_WITH = {"target-focussing": "targets"}
+
+#: What each run folder is called: ``run_`` and its number, two digits, so
+#: that ``run_10`` sorts after ``run_09`` in a file browser.
+RUN_NAME = re.compile(r"^run_(\d{2,})$")
+
+#: The run each kind of acquisition is on now, per experiment folder.
+_current_runs: dict[tuple[str, str], Path] = {}
+
+
+def runs_folder_of(experiment_root: Any, acquisition_type: str) -> Path:
+    """``<experiment>/<where this kind keeps its runs>``: the folder holding its ``run_NN`` folders."""
+    kind = checked_name(acquisition_type, field="acquisition_type")
+    return Path(experiment_root).joinpath(*WHERE_RUNS_GO.get(kind, (kind,)))
+
+
+def start_a_run(experiment_root: Any, acquisition_type: str, *, settings: Any = None) -> Path:
+    """Begin the next run of this kind: create ``run_NN`` and make it the current one.
+
+    The number is one above the highest already in the folder, so an earlier
+    run is never written into again. A target focussing run takes the number
+    of the targets run it goes with. ``settings`` is what the run was started
+    with; it is kept in the run's ``attempt.json``.
+    """
+    holder = runs_folder_of(experiment_root, acquisition_type)
+    holder.mkdir(parents=True, exist_ok=True)
+    paired = RUNS_TAKEN_WITH.get(acquisition_type)
+    number = None
+    if paired is not None:
+        partner = _current_runs.get((str(experiment_root), paired))
+        found = RUN_NAME.fullmatch(partner.name) if partner is not None else None
+        number = int(found.group(1)) if found else None
+    if number is None or (holder / f"run_{number:02d}").exists():
+        taken = [int(found.group(1)) for child in holder.iterdir()
+                 if child.is_dir() and (found := RUN_NAME.fullmatch(child.name))]
+        number = max(taken, default=0) + 1
+    folder = holder / f"run_{number:02d}"
+    folder.mkdir()
+    _write_attempt(folder, {
+        "acquisition_type": acquisition_type,
+        "run": folder.name,
+        "started": _now(),
+        "ended": None,
+        "how_it_ended": None,
+        "settings": settings,
+    })
+    _current_runs[(str(experiment_root), acquisition_type)] = folder
     return folder
+
+
+def current_run(experiment_root: Any, acquisition_type: str) -> Path | None:
+    """The run this kind is on now, or None before its first run began."""
+    return _current_runs.get((str(experiment_root), checked_name(acquisition_type, field="acquisition_type")))
+
+
+def end_a_run(experiment_root: Any, acquisition_type: str, how: str) -> None:
+    """Say in the current run's ``attempt.json`` that it ended, and how: ``finished``, ``stopped`` or ``failed``.
+
+    A run that is changed afterwards -- one point measured again, one target
+    taken again -- is ended again, and the record says when it last ended.
+    """
+    folder = current_run(experiment_root, acquisition_type)
+    if folder is None:
+        return
+    said = _read_attempt(folder)
+    said.update(ended=_now(), how_it_ended=how)
+    _write_attempt(folder, said)
+
+
+def prepare_acquisition(experiment_root: Any, acquisition_type: str) -> Path:
+    """The folder a driver saves this kind's captures in: its current run, created when there is none.
+
+    A capture asked for before its step started a run (a script, a single
+    test capture) lands in a first run of its own, never loose in the
+    experiment folder.
+    """
+    folder = current_run(experiment_root, acquisition_type)
+    if folder is None or not folder.is_dir():
+        folder = start_a_run(experiment_root, acquisition_type)
+    return folder
+
+
+def _now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+
+def _read_attempt(folder: Path) -> dict:
+    try:
+        return json.loads((folder / "attempt.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"run": folder.name}
+
+
+def _write_attempt(folder: Path, said: dict) -> None:
+    # Written beside and moved into place in one step, so a reader never finds half a file.
+    writing = folder / f".attempt.{uuid.uuid4().hex[:8]}.json"
+    writing.write_text(json.dumps(said, indent=2, default=str), encoding="utf-8")
+    os.replace(writing, folder / "attempt.json")
 
 
 def run_hash(run: Any) -> str:

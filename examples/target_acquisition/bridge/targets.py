@@ -1,7 +1,8 @@
 """The target run, driven by the page one tile at a time, like the focus map.
 
-Begin clears the targets acquisition (unless appending) and names the
-captures; the page drives and captures each, with a focussing stack first
+Begin starts a targets run, ``targets/run_NN``, with the selection that chose
+its targets (unless one selected target is being taken again, which stays in
+the current run) and names the captures; the page drives and captures each, with a focussing stack first
 when the operator asked for one; landed files the target's record the way
 the scan filed its own; end closes the run. The ledger is ``ledgers.acquired``.
 
@@ -11,6 +12,8 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
+import json
+import os
 import shutil
 import time
 from pathlib import Path
@@ -18,7 +21,6 @@ from pathlib import Path
 from ..microscope.focus_run import measure_one_stack
 from ..storage import output, viewer_service
 from ..storage.output import prepare_acquisition
-from ..storage.positions import name_of_a_position
 from . import focus, ledgers, pictures, scan, stage, state
 
 #: The stacks taken before a target when the operator asked for focussing
@@ -27,9 +29,15 @@ TARGET_FOCUSSING = "target-focussing"
 
 
 def begin_target_run(asked: dict) -> dict:
-    """The page begins the target run: the targets acquisition is cleared
-    (unless one selected target is being taken again), the ledger emptied,
+    """The page begins the target run: a new targets run, the ledger emptied,
     and the captures named in order.
+
+    A new run, ``targets/run_NN``, keeps ``selection.json``: why these targets
+    were chosen -- the gates, the plot files they were drawn on, the objects
+    that passed and the fields to image (``selection``, as the page sends
+    it). Its focussing stacks go to ``focussing/targets/run_NN``, with the
+    same number. One selected target taken again (``append``) stays in the
+    current run, beside its earlier capture.
 
     The page drives every tile itself from here -- ``/api/xyz``, a focussing
     stack through ``/api/acquire`` and ``/api/targets/acquire/focus`` when the
@@ -52,15 +60,12 @@ def begin_target_run(asked: dict) -> dict:
             state.view_built.pop("targets", None)
     else:
         state.records["targets"] = []
-        pictures.replace_the_acquisition(
-            "targets",
-            keeping={
-                name_of_a_position("targets", scan.label_for(i, p), state.image_format)
-                for i, p in enumerate(positions)
-            },
-        )
+        folder = pictures.begin_a_run("targets", settings={
+            "targets": len(positions), "format": state.image_format,
+        })
+        keep_the_selection(folder, asked.get("selection"), positions)
         # The focussing stacks belong to the run they were taken for.
-        pictures.replace_the_acquisition(TARGET_FOCUSSING)
+        pictures.begin_a_run(TARGET_FOCUSSING)
     for key in [key for key in state.displayed_pictures if key[0] == "targets"]:
         del state.displayed_pictures[key]
     ledgers.acquired.update(running=True, done=0, of=len(positions), error=None, stopped=False, records=[])
@@ -138,7 +143,34 @@ def target_landed(asked: dict) -> dict:
 def end_target_run(asked: dict) -> dict:
     """The page ends the run, stopped by its hand or complete."""
     ledgers.acquired.update(running=False, stopped=bool(asked.get("stopped")))
+    for kind in ("targets", TARGET_FOCUSSING):
+        pictures.end_the_run(kind, stopped=bool(asked.get("stopped")))
     return dict(ledgers.acquired)
+
+
+def keep_the_selection(folder: Path, selection, positions: list) -> None:
+    """Write ``selection.json`` in the new targets run: why these targets were taken.
+
+    ``selection`` is what the page chose them with -- the gates and the
+    objects that passed them. The plots the gates were drawn on are named by
+    their files in the overview run's ``analysis/plots``, because a UMAP can
+    come out differently each time it is computed and a gate only means
+    something on the one it was drawn on. ``positions`` are the fields the
+    run images, in order.
+    """
+    from . import plots  # noqa: PLC0415 -- plots imports the analysis only when asked
+
+    chosen = dict(selection) if isinstance(selection, dict) else {}
+    axes = {axis for gate in chosen.get("gates") or [] for axis in (gate.get("fx"), gate.get("fy"))}
+    chosen["plots"] = {
+        kind: str(path) for kind, path in plots.latest.items()
+        if any(str(axis).startswith(f"{kind}_") for axis in axes)
+    }
+    chosen["fields"] = positions
+    chosen["chosen"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    writing = folder / ".selection.writing.json"
+    writing.write_text(json.dumps(chosen, indent=2, default=str), encoding="utf-8")
+    os.replace(writing, folder / "selection.json")
 
 
 def the_target_run(since: int | None = None) -> dict:
@@ -160,6 +192,6 @@ def raise_target(asked: dict) -> dict:
     record = next((one for one in state.records.get("targets", []) if one.get("position_label") == label), None)
     if record is None:
         raise ValueError(f"no acquired target is labelled {label!r}")
-    folder = state.the_run() / "positions" / "targets"
-    viewer_service.raise_position("targets", folder, Path(record["position_path"]))
+    store = Path(record["position_path"])
+    viewer_service.raise_position("targets", store.parent, store)
     return {"raised": label}

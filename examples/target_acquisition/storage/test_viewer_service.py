@@ -101,29 +101,6 @@ def test_invalid_overview_does_not_hide_committed_targets(monkeypatch, tmp_path,
         server.server_close()
 
 
-def test_retirement_counts_only_current_stores_and_keeps_revision_history(monkeypatch, tmp_path):
-    monkeypatch.setattr(service, "_viewer", _empty_service(port=8848))
-    monkeypatch.setattr(service, "_ask", lambda *_: {})
-    monkeypatch.setattr(service, "_read", lambda *_: {})
-    first, retired = tmp_path / "first.zarr", tmp_path / "retired.zarr"
-    for store in (first, retired):
-        store.mkdir()
-        service.a_position_landed("overview", tmp_path, store=store)
-    assert _flush()
-    retired.rmdir()
-    service.stores_were_retired("overview", tmp_path)
-    assert _flush()
-    assert service.status()["publications"]["overview"] == {
-        "acquired": 1, "published": 1, "state": "ready", "error": None,
-    }
-    retired.mkdir()
-    service.a_position_landed("overview", tmp_path, store=retired)
-    assert service._viewer["source_versions"][("overview", retired.name)] == 2
-    assert service.status()["publications"]["overview"]["state"] == "preparing"
-    assert _flush()
-    assert service.status()["publications"]["overview"]["published"] == 2
-
-
 def test_http_503_retries_without_another_capture(monkeypatch, tmp_path):
     attempts = []
 
@@ -569,6 +546,48 @@ def test_a_store_gone_from_disk_is_left_out_of_what_the_page_is_handed(tmp_path)
     )
 
 
+def test_a_new_run_stops_announcing_the_earlier_runs_folder(monkeypatch, tmp_path):
+    """A rerun opens its own folder; the earlier run is never announced again,
+    so the canvas shows only the new run, while the earlier one stays on disk."""
+    monkeypatch.setattr(service, "_viewer", _empty_service(port=8848))
+    calls: list[tuple[str, dict]] = []
+    monkeypatch.setattr(service, "_ask", lambda port, route, payload: calls.append((route, payload)) or {})
+    monkeypatch.setattr(service, "_read", lambda *_: {})
+    first, second = tmp_path / "run_01" / "data", tmp_path / "run_02" / "data"
+    for folder in (first, second):
+        folder.mkdir(parents=True)
+    (first / "overview_A1.ome.zarr").mkdir()
+    service.a_position_landed("overview", first, store=first / "overview_A1.ome.zarr")
+    assert _flush()
+
+    service.a_run_began("overview")
+    (second / "overview_B1.ome.zarr").mkdir()
+    service.a_position_landed("overview", second, store=second / "overview_B1.ome.zarr")
+    calls.clear()
+    assert _flush()
+
+    assert [payload["path"] for _, payload in calls] == [str(second)]
+    assert calls[0][1]["source_revisions"] == {"overview_B1.ome.zarr": 1}
+    assert (first / "overview_A1.ome.zarr").is_dir(), "the earlier run is left as it was"
+
+
+def test_a_label_taken_again_shows_only_its_new_position(monkeypatch, tmp_path):
+    monkeypatch.setattr(service, "_viewer", _empty_service(port=8848))
+    calls: list[tuple[str, dict]] = []
+    monkeypatch.setattr(service, "_ask", lambda port, route, payload: calls.append((route, payload)) or {})
+    monkeypatch.setattr(service, "_read", lambda *_: {})
+    for name in ("focussing_P7.ome.zarr", "focussing_P7_001.ome.zarr"):
+        (tmp_path / name).mkdir()
+    service.a_position_landed("focussing", tmp_path, store=tmp_path / "focussing_P7.ome.zarr")
+    assert _flush()
+    service.forget_a_store("focussing", "focussing_P7.ome.zarr")
+    service.a_position_landed("focussing", tmp_path, store=tmp_path / "focussing_P7_001.ome.zarr")
+    calls.clear()
+    assert _flush()
+    assert calls[-1][1]["publications"][0]["source_revisions"] == {"focussing_P7_001.ome.zarr": 1}
+    assert (tmp_path / "focussing_P7.ome.zarr").is_dir()
+
+
 def test_addresses_outside_the_opened_folders_are_left_alone():
     before = dict(service._viewer)
     service._viewer.clear()
@@ -576,39 +595,6 @@ def test_addresses_outside_the_opened_folders_are_left_alone():
     try:
         assert service._still_on_disk("/data/0/demo.zarr/|zarr2:")
         assert service._still_on_disk("http://elsewhere/picture.zarr")
-    finally:
-        service._viewer.clear()
-        service._viewer.update(before)
-
-
-def test_retired_stores_are_announced_plainly(monkeypatch, tmp_path):
-    before = dict(service._viewer)
-    service._viewer.clear()
-    service._viewer.update(_empty_service(port=8848))
-    calls: list[tuple[str, dict]] = []
-    monkeypatch.setattr(
-        service, "_ask", lambda port, route, payload: calls.append((route, payload)) or {}
-    )
-    monkeypatch.setattr(service, "_read", lambda *_: {})
-    service._viewer["opened"].add(str(tmp_path))
-    try:
-        service.stores_were_retired("target", tmp_path)
-        _flush()
-    finally:
-        service._viewer.clear()
-        service._viewer.update(before)
-    assert [route for route, _ in calls] == ["/api/announce"]
-    assert calls[0][1]["publications"][0]["source_revisions"] == {}
-    assert calls[0][1]["publications"][0]["composition"]["order"] == []
-
-
-def test_retiring_stores_without_a_viewer_is_nothing(tmp_path):
-    before = dict(service._viewer)
-    service._viewer.clear()
-    service._viewer.update(_empty_service(port=None))
-    try:
-        service.stores_were_retired("target", tmp_path)
-        assert service._viewer["error"] is None
     finally:
         service._viewer.clear()
         service._viewer.update(before)
@@ -861,23 +847,6 @@ def test_late_snapshot_cannot_replace_a_new_session(monkeypatch):
     service._publish_once(state["wake"], {})
     assert service.status()["url"] == "http://127.0.0.1:8849"
     assert service.status()["acquisitions"] == []
-
-
-def test_retirement_during_the_first_folder_open_is_not_lost(monkeypatch, tmp_path):
-    state = _empty_service(port=8848)
-    monkeypatch.setattr(service, "_viewer", state)
-    (tmp_path / "P0.zarr").mkdir()
-
-    def ask(port, route, payload):
-        if route == "/api/stores/open":
-            service.stores_were_retired("overview", tmp_path)
-        return {}
-
-    monkeypatch.setattr(service, "_ask", ask)
-    monkeypatch.setattr(service, "_read", lambda *_: {})
-    service.a_position_landed("overview", tmp_path, store="P0.zarr")
-    assert _flush()
-    assert state["pending"] == {str(tmp_path)}
 
 
 @pytest.mark.parametrize("bake", [False, True])

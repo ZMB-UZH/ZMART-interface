@@ -1264,6 +1264,9 @@ async function rerunOne(f: FocusMap, at: number, p: MapPoint): Promise<void> {
     metric: f.metric,
     extent: carrierSpan(),
     state: activeRecording(run.focusPreset)?.changeable ?? null,
+    /* This one point, by its place in the map: it stays in the current focus
+       run, keeps its label, and its new stack stands beside the old one. */
+    at: [at],
   });
   const [got] = points;
   if (got) {

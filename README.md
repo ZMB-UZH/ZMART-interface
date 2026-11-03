@@ -28,7 +28,7 @@ The ZMART interface provides a unified interactive framework and playground that
 <br>
 
 ## Status
-This is a release candidate, 0.2.0rc4. We are currently in the process of testing it on the Leica Stellaris.
+This is a release candidate, 0.2.0rc5. We are currently in the process of testing it on the Leica Stellaris.
 
 ## A framework, and the workflows you run in it
 The interface is a framework: installing it gives you the operator window and
@@ -42,10 +42,10 @@ This repository keeps one complete example, *Target acquisition*, in
 place to start when you write a workflow. It is not installed with the
 interface.
 
-## How a run's images are saved
-On the Connect step you choose, once for the whole run, how its images are
-saved. Each capture becomes one *position* of the run, kept beside the
-microscope's own files:
+## How an experiment's images are saved
+On the Connect step you choose, once for the whole experiment, how its images
+are saved. Each capture becomes one *position*, kept beside the microscope's
+own files:
 
 - **OME-TIFF** (the default): one `.ome.tif` file per position, holding every
   channel and plane, with smaller copies of the picture inside it. It opens
@@ -59,6 +59,36 @@ interface work the same way with either. Where a picture lies on the stage
 follows the OME-Zarr rules in both: an OME-TIFF carries the same description
 an OME-Zarr image would, in a small ZMART note inside the file that other
 programs skip.
+
+### Where everything goes
+Each experiment has one folder, `<experiment>_<code>`. Inside it, every time a
+step acquires -- the first time, when you run it again, or after you
+interrupted it -- it gets a numbered folder of its own, `run_01`, `run_02`, and
+so on. Nothing from an earlier run is overwritten or deleted, and the canvas
+shows the newest run of each step:
+
+```
+<experiment>_<code>/
+  focussing/
+    overview/run_01/        the focus map (step 4)
+    targets/run_01/         each target's own focus stack (step 9), with its targets run
+  overview/run_01/          the overview scan (step 5)
+    data/                   the microscope's captures
+    projections/            the maximum projections
+    analysis/               detection and gating (steps 6 and 7), made from these tiles
+      plots/                every UMAP or PCA computed, numbered: umap_01.csv, ...
+  targets/run_01/           the targets (step 9)
+    selection.json          why these targets: the gates, the plot they were drawn on, the objects
+```
+
+Each `run_NN` folder holds `attempt.json`, which says when the run started,
+whether it finished or was interrupted, and the settings it ran with. A small
+correction stays in the run it corrects: measuring one focus point again, or
+the points you added, keeps the same focus map, and its `focus_map.json` says
+which stack each point uses now and which it used before. Taking one target
+again stays in its targets run too. The kind of acquisition is also written
+into every file's name and metadata, so a file copied out of its folder still
+says what it is.
 
 ## Try it yourself
 Install it and test it:
