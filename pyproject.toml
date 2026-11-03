@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zmart-interface"
-version = "0.2.0rc2"
+version = "0.2.0rc3"
 description = "The ZMART operator window: walk a smart-microscopy run step by step, on any microscope the ZMART Controller drives."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Thom de Hoog", email = "thom.dehoog@zmb.uzh.ch" }]
-keywords = ["microscopy", "smart microscopy", "operator interface", "ome-zarr"]
+keywords = ["microscopy", "smart microscopy", "operator interface", "ome-zarr", "ome-tiff"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Intended Audience :: Science/Research",
@@ -25,20 +25,21 @@ dependencies = [
     # interface opens a ZmartController of its own and lists the drivers the
     # controller's registry knows. Its acquire is given the kind of acquisition
     # and the folder to save in.
-    "zmart-controller @ git+https://github.com/ZMB-UZH/ZMART-controller@v0.4.0rc8",
+    "zmart-controller @ git+https://github.com/ZMB-UZH/ZMART-controller@v0.4.0rc9",
     # The picture server that shows the run as it is acquired. Pinned to a
     # release, because the page is built with the viewer's drawing files: the
     # build stops when the installed viewer is not this one.
-    "zmart-viewer @ git+https://github.com/ZMB-UZH/ZMART-viewer@v0.5.0rc10",
+    "zmart-viewer @ git+https://github.com/ZMB-UZH/ZMART-viewer@v0.5.0rc11",
     # The engine that scores focus and finds objects, each step in its own
     # environment (the zmart_analysis package). Its workflows stay in a
     # checkout of the repository; see examples/target_acquisition/analysis/workflows.py.
-    "zmart-analysis @ git+https://github.com/ZMB-UZH/ZMART-analysis@v0.6.0rc9",
-    # Reading and writing the OME-Zarr images every capture is kept as.
+    "zmart-analysis @ git+https://github.com/ZMB-UZH/ZMART-analysis@v0.6.0rc10",
+    # Reading and writing the OME-Zarr positions a run can be kept as.
     "ngio==1.1.0",
     "zarr>=3,<4",
     "numpy>=1.24",
-    # Reading the image files a microscope writes.
+    # Reading the image files a microscope writes, and writing the OME-TIFF
+    # positions a run can be kept as.
     "tifffile>=2024.1",
     # The small pictures beside the canvas, and the detection masks.
     "pillow>=10",

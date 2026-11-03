@@ -1,12 +1,28 @@
-"""Each capture becomes one OME-Zarr 0.5 position, beside the vendor's files.
+"""Each capture becomes one position of the run, in the format chosen at Connect.
 
 The instrument writes what it writes — LAS X's autosave leaves OME-TIFFs, and
 fighting a vendor's own export is a losing game — so the vendor's files are
 used as well as possible and then, the moment a capture lands, converted into
-the run's canonical form: **one OME-Zarr 0.5 image per position, axes
-t/c/z/y/x**, where it was taken recorded inside it where nobody can rename
-it away. The TIFFs stay untouched in ``data/``; the positions stand in
-``positions/`` beside them.
+the run's own form: **one position per capture, axes t/c/z/y/x**, where it
+was taken recorded inside it where nobody can rename it away. The vendor's
+files stay untouched in ``data/``; the positions stand in ``positions/``
+beside them.
+
+A run is saved in one of two formats, chosen when connecting (:data:`FORMATS`):
+
+- **OME-TIFF** (the default): one ``.ome.tif`` file per position, holding
+  every channel and plane, with smaller copies stored inside it the standard
+  way. It opens with a drag and drop in Fiji, napari, QuPath or Imaris.
+- **OME-Zarr 0.5**: one ``.ome.zarr`` image per position.
+
+Both are placed by the same rules, those of OME-Zarr. An OME-TIFF position
+carries the very description its OME-Zarr twin would have (each level's
+scale, and the centre of its first voxel as its translation), its channels'
+display and how the planes were taken, in ZMART's note inside its OME-XML
+(:data:`ZMART_NOTE`). Other programs skip the note. This module is the one
+place in the interface that knows the two formats apart: the rest asks it
+whether something is a position, how large its pixels are and how wide its
+frame is.
 
 One folder per acquisition type, holding nothing but position stores, is
 exactly the shape the ZMART viewer opens as one acquisition — the overview,
@@ -40,11 +56,15 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import shutil
 import time
 import uuid
+import xml.etree.ElementTree as ElementTree
+from functools import lru_cache
 from pathlib import Path
+from xml.sax.saxutils import escape, quoteattr
 
 import numpy as np
 
@@ -54,7 +74,36 @@ from .images import (
     how_many_copies_a_position_can_keep,
 )
 
+#: The two formats a run's positions can be saved in, as the Connect step
+#: offers them: OME-TIFF first, and the default.
+FORMATS = ("ome-tiff", "ome-zarr")
+DEFAULT_FORMAT = "ome-tiff"
+
+#: The ending each format's positions are named with.
+ENDINGS = {"ome-tiff": ".ome.tif", "ome-zarr": ".ome.zarr"}
+
+#: The endings an OME-TIFF may have, written by ZMART or by another program.
+_TIFF_ENDINGS = (".ome.tif", ".ome.tiff")
+
+#: The namespace of ZMART's note inside an OME-TIFF position, which the ZMART
+#: viewer reads too. Its entries are JSON, each what an OME-Zarr position
+#: keeps under the same name: ``multiscales`` (each level's scale and the
+#: centre of its first voxel, which is what places the position), ``omero``
+#: (each channel's name, colour and the brightness window it opens with) and
+#: ``zmart_microscopy`` (how the planes of a stack were taken). An OME-TIFF
+#: without the note is not a position: its own ``PositionX`` and
+#: ``PositionY`` are never used, because programs disagree on which point of
+#: the picture they name.
+ZMART_NOTE = "zmart/position"
+
+#: How hard an OME-TIFF's pixels are packed: deflate, at its fastest level.
+#: Measured on fluorescence stacks, it writes a file about a third of the raw
+#: size in a third of a second per 100 MB, quick enough for a live run, and
+#: Fiji, QuPath and Imaris (through Bio-Formats) and napari all read it.
+_DEFLATE_LEVEL = 1
+
 #: The chunk edge in y and x, matching the run stores ZMART's writer makes.
+#: An OME-TIFF position is cut into tiles of the same size.
 PIECE = 128
 
 #: Metres and friends, as OME spells them, into micrometres. OME's default
@@ -71,21 +120,33 @@ WRITE_ATTEMPTS = 3
 WRITE_RETRY_S = 0.3
 
 
-def position_store_from_record(record: dict, into: Path | str) -> Path:
-    """Write one OME-Zarr 0.5 position from a capture's record, and return it.
+def checked_format(asked: str | None) -> str:
+    """The format a run is saved in: the one asked for, or the default when none was.
+
+    Raises ``ValueError`` naming the formats when the word is not one of them.
+    """
+    chosen = asked or DEFAULT_FORMAT
+    if chosen not in FORMATS:
+        raise ValueError(f"a run is saved as one of {list(FORMATS)}, not {chosen!r}")
+    return chosen
+
+
+def position_from_record(record: dict, into: Path | str, *, format: str) -> Path:
+    """Write one position from a capture's record, in the run's format, and return it.
 
     ``record`` is what the driver's acquire returned — its ``planes`` name the
     vendor's files and where each was taken. ``into`` is the acquisition's
-    ``positions`` folder; the store lands there as
-    ``<position_label>.ome.zarr``, an ordinary OME-Zarr image that opens on
-    its own in napari, Fiji, or the ZMART viewer.
+    ``positions`` folder; the position lands there as
+    ``<acquisition type>_<position_label>`` with the format's ending, an
+    ordinary OME-TIFF or OME-Zarr image that opens on its own in Fiji, napari
+    or the ZMART viewer. ``format`` is one of :data:`FORMATS`.
 
     A rename the file system denies is tried again, in a fresh place, up to
     :data:`WRITE_ATTEMPTS` times; one denied for good raises as itself.
     """
     for attempt in range(WRITE_ATTEMPTS):
         try:
-            return _write_a_position(record, into)
+            return _write_a_position(record, into, format=format)
         except PermissionError as denied:
             if attempt == WRITE_ATTEMPTS - 1:
                 raise
@@ -94,26 +155,74 @@ def position_store_from_record(record: dict, into: Path | str) -> Path:
     raise last  # pragma: no cover -- the loop above always returns or raises
 
 
-def frame_um_of(store: Path | str) -> float:
-    """How wide one position's store is on the sample, in micrometres: its
-    finest level's width times the pixel size the writer recorded. The store
-    is the capture's own word on its size, where a recording made before
-    the run is only what was promised."""
-    import zarr  # noqa: PLC0415
+def frame_um_of(position: Path | str) -> float:
+    """How wide one position is on the sample, in micrometres: its full-size
+    width times the pixel size the writer recorded. The position is the
+    capture's own word on its size, where a recording made before the run is
+    only what was promised."""
+    position = Path(position)
+    if position.name.lower().endswith(_TIFF_ENDINGS):
+        import tifffile
 
-    opened = zarr.open(str(store), mode="r")
-    attributes = dict(opened.attrs)
-    multiscale = ((attributes.get("ome") or attributes).get("multiscales") or [{}])[0]
+        with tifffile.TiffFile(position) as tif:
+            width_px = tif.series[0].shape[-1]
+    else:
+        import zarr  # noqa: PLC0415
+
+        full_size = _the_description_of(position)["datasets"][0]["path"]
+        width_px = zarr.open_array(str(position / full_size), mode="r").shape[-1]
+    return float(width_px * pixel_size_um_of(position))
+
+
+def pixel_size_um_of(position: Path | str) -> float:
+    """The width of one full-size pixel of a position, in micrometres.
+
+    Only the position's description is read, never its pixels. Raises
+    ``RuntimeError`` when the position does not say.
+    """
+    multiscale = _the_description_of(Path(position))
     axes = [axis.get("name") for axis in multiscale.get("axes", [])]
-    width_px = opened[multiscale["datasets"][0]["path"]].shape[-1]
     for transform in multiscale["datasets"][0].get("coordinateTransformations", []):
         if transform.get("type") == "scale":
-            return float(width_px * transform["scale"][axes.index("x") if "x" in axes else -1])
-    raise RuntimeError(f"{store} declares no pixel size")
+            return float(transform["scale"][axes.index("x") if "x" in axes else -1])
+    raise RuntimeError(f"the position {position} does not say its pixel size")
 
 
-def _write_a_position(record: dict, into: Path | str) -> Path:
-    """One attempt at :func:`position_store_from_record`."""
+def name_of_a_position(kind: str, label: str, format: str) -> str:
+    """What a position is called: ``overview_P000001.ome.tif``, say."""
+    return f"{kind}_{label}{ENDINGS[format]}"
+
+
+def is_a_position_name(name: str) -> bool:
+    """Whether a name is that of a position, in either format."""
+    return name.endswith(ENDINGS["ome-zarr"]) or name.lower().endswith(_TIFF_ENDINGS)
+
+
+def format_of(path: Path | str) -> str | None:
+    """The format a finished position is in, or None when ``path`` is not one.
+
+    An OME-Zarr image is a folder. An OME-TIFF counts only when ZMART's note
+    (:data:`ZMART_NOTE`) is inside it, because only the note says where the
+    picture lies on the stage, by the same rules an OME-Zarr image follows.
+    An OME-TIFF without it, such as one a microscope wrote by itself, does
+    not say that in a form ZMART can trust.
+    """
+    path = Path(path)
+    if path.name.endswith(ENDINGS["ome-zarr"]) and path.is_dir():
+        return "ome-zarr"
+    if path.name.lower().endswith(_TIFF_ENDINGS) and path.is_file():
+        if _the_note_in(str(path), *_the_stamp_of(path)):
+            return "ome-tiff"
+    return None
+
+
+def is_a_position(path: Path | str) -> bool:
+    """Whether ``path`` is a finished position, in either format."""
+    return format_of(path) is not None
+
+
+def _write_a_position(record: dict, into: Path | str, *, format: str) -> Path:
+    """One attempt at :func:`position_from_record`."""
     planes = record.get("planes") or []
     if not planes:
         raise RuntimeError("the capture reported no planes, so there is nothing to keep")
@@ -135,7 +244,7 @@ def _write_a_position(record: dict, into: Path | str) -> Path:
     # interface's own, stamped on the record by the bridge from what it asked
     # for; drivers do not report it.
     kind = record.get("acquisition_type") or "capture"
-    published = into / f"{kind}_{record['position_label']}.ome.zarr"
+    published = into / name_of_a_position(kind, record["position_label"], format)
     # Written somewhere the viewer is not looking, and moved into place only
     # once every level is filled. The viewer watches ``positions/<type>`` and
     # shows a store the moment its description exists, so a store filled in
@@ -145,7 +254,40 @@ def _write_a_position(record: dict, into: Path | str) -> Path:
     # folder is one step the file system does whole, so the viewer now sees
     # either nothing or the complete store, never something in between.
     store = _a_place_to_write(into, published.name)
+    if format == "ome-tiff":
+        # The OME-Zarr description is declared as for an OME-Zarr position,
+        # without a pixel, and carried into the OME-TIFF as it is: the two
+        # formats are placed by the one description, never by two that drift.
+        try:
+            arrays, description = _declared(store, volume, dz, pixel_size_um, first_voxel_um, z_model)
+        finally:
+            shutil.rmtree(store.parent, ignore_errors=True)
+        return _write_a_tiff(published, _smaller_copies(volume, len(arrays)), description)
+    arrays, description = _declared(store, volume, dz, pixel_size_um, first_voxel_um, z_model)
 
+    # Fill the levels from the finest down, keeping every second voxel along
+    # y and x — the run stores' own convention, declared in their description.
+    for array, copy in zip(arrays, _smaller_copies(volume, len(arrays)), strict=True):
+        array[:] = copy
+    return _publish(store, published)
+
+
+def _smaller_copies(volume: np.ndarray, levels: int) -> list[np.ndarray]:
+    """The full-size volume and its smaller copies, each the mean of 2 × 2 pixels of the one before."""
+    copies = [volume]
+    for _ in range(levels - 1):
+        copies.append(_mean_downsample_yx(copies[-1]))
+    return copies
+
+
+def _declared(store: Path, volume: np.ndarray, dz: float, pixel_size_um, first_voxel_um, z_model: dict):
+    """Declare ``store`` as an OME-Zarr position for ``volume``; return its levels and its attributes.
+
+    The attributes hold the OME-Zarr description (``ome``: ``multiscales``
+    and ``omero``) and ZMART's record of how the planes were taken
+    (``zmart_microscopy``), exactly as the store keeps them.
+    """
+    frames, channels, nz, ny, nx = volume.shape
     depth_max = _the_depth_of(volume.dtype)
     tile_shape = (nz, ny, nx)
     arrays = declare_image(
@@ -179,15 +321,7 @@ def _write_a_position(record: dict, into: Path | str) -> Path:
     }
     _describe_mean_pyramid(description)
     description_path.write_text(json.dumps(description, indent=2), encoding="utf-8")
-
-    # Fill the levels from the finest down, keeping every second voxel along
-    # y and x — the run stores' own convention, declared in their description.
-    shrinking = volume
-    for level, array in enumerate(arrays):
-        if level:
-            shrinking = _mean_downsample_yx(shrinking)
-        array[:] = shrinking
-    return _publish(store, published)
+    return arrays, description["attributes"]
 
 
 def _a_place_to_write(into: Path, name: str) -> Path:
@@ -512,3 +646,191 @@ def _the_depth_of(dtype: np.dtype) -> int:
         return int(np.iinfo(dtype).max)
     except ValueError:
         return 65535
+
+
+# -- OME-TIFF positions ---------------------------------------------------------
+
+
+def write_a_projection(position: Path | str, into: Path | str) -> Path:
+    """Write the maximum projection over z of an OME-TIFF position, and return it.
+
+    The projection lands in ``into`` under the position's own name, as an
+    OME-TIFF of one plane per channel. It lies where the position lies, with
+    its channels' display, so a person opens it to see a stack at a glance and
+    the viewer shows it as the run's projection. (For OME-Zarr runs the
+    viewer makes its projections itself.)
+    """
+    import tifffile
+
+    position = Path(position)
+    with tifffile.TiffFile(position) as tif:
+        series = tif.series[0]
+        volume = _in_five_axes(series.asarray(), series.axes)
+    note = _the_note_in(str(position), *_the_stamp_of(position))
+    attributes = {
+        "ome": {
+            "multiscales": json.loads(note["multiscales"]),
+            **({"omero": json.loads(note["omero"])} if note.get("omero") else {}),
+        }
+    }
+    flat = volume.max(axis=2, keepdims=True)
+    multiscale = attributes["ome"]["multiscales"][0]
+    return _write_a_tiff(
+        Path(into) / position.name, _smaller_copies(flat, len(multiscale["datasets"])), attributes
+    )
+
+
+def _write_a_tiff(published: Path, copies: list[np.ndarray], attributes: dict) -> Path:
+    """Write ``copies`` (the full size first, each t, c, z, y, x) as one OME-TIFF at ``published``.
+
+    ``attributes`` are the OME-Zarr position's own (``ome`` and, for a stack,
+    ``zmart_microscopy``); they go into ZMART's note unchanged, so the file is
+    placed exactly as the OME-Zarr twin would be. The smaller copies are kept
+    inside the file as sub-images of each plane, where Fiji, QuPath and napari
+    look for them. The file is written under a temporary name beside its place
+    and moved there in one step, so the viewer never finds it half-written.
+    """
+    import tifffile
+
+    volume = copies[0]
+    planes = [copy.reshape(-1, *copy.shape[-2:]) for copy in copies]
+    described = _ome_xml(published.name, volume, attributes)
+    options = {
+        "tile": (PIECE, PIECE),
+        "photometric": "minisblack",
+        "compression": "zlib",
+        "compressionargs": {"level": _DEFLATE_LEVEL},
+        "metadata": None,
+    }
+    published.parent.mkdir(parents=True, exist_ok=True)
+    staging = published.with_name(f".{published.name}.{uuid.uuid4().hex[:8]}.writing")
+    try:
+        # A classic TIFF cannot be larger than 4 GB; the larger kind can.
+        with tifffile.TiffWriter(staging, bigtiff=volume.nbytes >= 2**31) as tif:
+            for index, plane in enumerate(planes[0]):
+                tif.write(
+                    plane,
+                    subifds=len(copies) - 1,
+                    description=described if index == 0 else None,
+                    **options,
+                )
+                for smaller in planes[1:]:
+                    tif.write(smaller[index], subfiletype=1, **options)
+        os.replace(staging, published)
+    finally:
+        staging.unlink(missing_ok=True)
+    return published
+
+
+def _ome_xml(name: str, volume: np.ndarray, attributes: dict) -> bytes:
+    """The OME-XML description of one position, with ZMART's note in it.
+
+    The standard part says what any OME reader needs: the pixel size, each
+    channel's name and colour, and every plane's height. Planes are stored
+    with z changing fastest, then the channel, then time
+    (``DimensionOrder="XYZCT"``). No ``PositionX`` or ``PositionY`` is written:
+    the position is placed by the note's OME-Zarr description.
+    """
+    frames, channels, depth, height, width = volume.shape
+    ome = attributes["ome"]
+    multiscale = ome["multiscales"][0]
+    scale, translation = (
+        next(t[kind] for t in multiscale["datasets"][0]["coordinateTransformations"] if t["type"] == kind)
+        for kind in ("scale", "translation")
+    )
+    dz, dy, dx = scale[-3:]
+    z0 = translation[-3]
+    kind = {"float32": "float", "float64": "double"}.get(volume.dtype.name, volume.dtype.name)
+    blocks = (ome.get("omero") or {}).get("channels") or []
+    channel_elements = "".join(
+        f'<Channel ID="Channel:0:{index}" Name={quoteattr(str(block.get("label") or ""))}'
+        + (f' Color="{_ome_colour_of(block["color"])}"' if block.get("color") else "")
+        + ' SamplesPerPixel="1"/>'
+        for index, block in enumerate(blocks[:channels])
+    ) or "".join(f'<Channel ID="Channel:0:{c}" SamplesPerPixel="1"/>' for c in range(channels))
+    plane_elements = "".join(
+        f'<Plane TheT="{t}" TheC="{c}" TheZ="{z}" PositionZ="{z0 + z * dz}" PositionZUnit="µm"/>'
+        for t in range(frames)
+        for c in range(channels)
+        for z in range(depth)
+    )
+    note = {"multiscales": json.dumps(ome["multiscales"], sort_keys=True)}
+    if ome.get("omero"):
+        note["omero"] = json.dumps(ome["omero"], sort_keys=True)
+    if attributes.get("zmart_microscopy"):
+        note["zmart_microscopy"] = json.dumps(attributes["zmart_microscopy"], sort_keys=True)
+    entries = "".join(f"<M K={quoteattr(key)}>{escape(value)}</M>" for key, value in note.items())
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<OME xmlns="http://www.openmicroscopy.org/Schemas/OME/2016-06" Creator="ZMART interface">'
+        f'<Image ID="Image:0" Name={quoteattr(name)}>'
+        f'<Pixels ID="Pixels:0" DimensionOrder="XYZCT" Type="{kind}" '
+        f'SizeX="{width}" SizeY="{height}" SizeZ="{depth}" SizeC="{channels}" SizeT="{frames}" '
+        f'PhysicalSizeX="{dx}" PhysicalSizeXUnit="µm" PhysicalSizeY="{dy}" PhysicalSizeYUnit="µm" '
+        f'PhysicalSizeZ="{dz}" PhysicalSizeZUnit="µm">'
+        f"{channel_elements}"
+        f'<TiffData PlaneCount="{frames * channels * depth}"/>'
+        f"{plane_elements}"
+        "</Pixels>"
+        '<AnnotationRef ID="Annotation:0"/>'
+        "</Image>"
+        f'<StructuredAnnotations><MapAnnotation ID="Annotation:0" Namespace="{ZMART_NOTE}">'
+        f"<Value>{entries}</Value></MapAnnotation></StructuredAnnotations>"
+        "</OME>"
+    ).encode()
+
+
+def _the_description_of(position: Path) -> dict:
+    """A position's OME-Zarr description of its levels (one ``multiscales`` entry).
+
+    Both formats answer from it: an OME-Zarr image from its own
+    ``zarr.json``, an OME-TIFF from ZMART's note. Raises ``RuntimeError``
+    when the position carries none.
+    """
+    if position.name.lower().endswith(_TIFF_ENDINGS):
+        described = _the_note_in(str(position), *_the_stamp_of(position)).get("multiscales")
+        multiscales = json.loads(described) if described else []
+    else:
+        attributes = json.loads((position / "zarr.json").read_text(encoding="utf-8")).get("attributes", {})
+        multiscales = (attributes.get("ome") or attributes).get("multiscales") or []
+    if not multiscales or not multiscales[0].get("datasets"):
+        raise RuntimeError(f"the position {position} carries no description of its pixels")
+    return multiscales[0]
+
+
+def _the_stamp_of(path: Path) -> tuple[int, int]:
+    """When a file was last written, and its size: a replaced file differs in one."""
+    stat = path.stat()
+    return stat.st_mtime_ns, stat.st_size
+
+
+@lru_cache(maxsize=4096)
+def _the_note_in(path: str, written_ns: int, size: int) -> dict:
+    """ZMART's note inside an OME-TIFF, or an empty one. Remembered while the
+    file is unchanged: the time it was written and its size are part of the key."""
+    import tifffile
+
+    del written_ns, size  # only part of the key
+    try:
+        with tifffile.TiffFile(path) as tif:
+            root = ElementTree.fromstring(tif.ome_metadata or "<OME/>")
+    except (OSError, ValueError, ElementTree.ParseError, tifffile.TiffFileError):
+        return {}
+    for note in root.iter():
+        if note.tag.endswith("}MapAnnotation") and note.get("Namespace") == ZMART_NOTE:
+            return {entry.get("K"): entry.text or "" for entry in note.iter() if entry.tag.endswith("}M")}
+    return {}
+
+
+def _in_five_axes(held: np.ndarray, axes: str) -> np.ndarray:
+    """An array in the file's own axis order, given as (t, c, z, y, x)."""
+    order = [axes.index(axis) for axis in "TCZYX" if axis in axes]
+    held = np.transpose(held, order)
+    present = [axis for axis in "TCZYX" if axis in axes]
+    return held.reshape([held.shape[present.index(axis)] if axis in present else 1 for axis in "TCZYX"])
+
+
+def _ome_colour_of(hex_colour: str) -> int:
+    """``RRGGBB`` as OME-XML writes a colour: one signed number holding red, green, blue and alpha."""
+    value = int(hex_colour.lstrip("#")[:6], 16) << 8 | 0xFF
+    return value - (1 << 32) if value >= 1 << 31 else value

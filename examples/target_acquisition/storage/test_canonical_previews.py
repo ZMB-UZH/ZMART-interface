@@ -46,7 +46,7 @@ def canonical_store(tmp_path):
 @pytest.fixture
 def preview_server(monkeypatch, tmp_path, canonical_store):
     record = {
-        "position_label": "P0", "zarr": str(canonical_store),
+        "position_label": "P0", "position_path": str(canonical_store),
         # Deliberately nonexistent vendor paths: previews must use the store.
         "planes": [{"t": 0, "c": c, "path": "missing-vendor.tif"} for c in range(2)],
     }

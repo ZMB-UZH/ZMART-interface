@@ -18,7 +18,7 @@ tifffile = pytest.importorskip("tifffile")
 zarr = pytest.importorskip("zarr")
 
 # After the skips, so a machine without tifffile or zarr skips rather than fails.
-from .zarr_positions import position_store_from_record  # noqa: E402, I001
+from .positions import position_from_record  # noqa: E402, I001
 
 
 def a_record(planes: list[dict]) -> dict:
@@ -90,7 +90,7 @@ def a_z_stack(
 
 class TestTheStore:
     def test_a_position_is_ome_zarr_five_with_tczyx(self, tmp_path):
-        store = position_store_from_record(one_file_per_plane(tmp_path), tmp_path / "positions")
+        store = position_from_record(one_file_per_plane(tmp_path), tmp_path / "positions", format="ome-zarr")
         assert store.name == "overview_K00_M000000_G000000_P000007_V00.ome.zarr"
         description = json.loads((store / "zarr.json").read_text())
         assert description["zarr_format"] == 3
@@ -101,7 +101,7 @@ class TestTheStore:
 
     def test_the_pixels_round_trip(self, tmp_path):
         record = one_file_per_plane(tmp_path, channels=2, size=256)
-        store = position_store_from_record(record, tmp_path / "positions")
+        store = position_from_record(record, tmp_path / "positions", format="ome-zarr")
         finest = zarr.open_array(str(store / "0"), mode="r")
         assert finest.shape == (1, 2, 1, 256, 256)
         written = np.asarray(finest[0, 1, 0])
@@ -111,7 +111,7 @@ class TestTheStore:
     def test_every_level_is_placed_by_the_centre_of_its_first_voxel(self, tmp_path):
         # OME-NGFF RFC-5: the centre of a voxel is the origin of the coordinates.
         record = one_file_per_plane(tmp_path, size=256)  # 2.5 um/px -> 640 um frame
-        store = position_store_from_record(record, tmp_path / "positions")
+        store = position_from_record(record, tmp_path / "positions", format="ome-zarr")
         description = json.loads((store / "zarr.json").read_text())
         datasets = description["attributes"]["ome"]["multiscales"][0]["datasets"]
         assert len(datasets) == 2
@@ -135,7 +135,7 @@ class TestTheStore:
 
     def test_a_reader_of_the_format_places_the_first_voxel_where_it_was_written(self, tmp_path):
         ngff_zarr = pytest.importorskip("ngff_zarr")
-        store = position_store_from_record(one_file_per_plane(tmp_path, size=256), tmp_path / "positions")
+        store = position_from_record(one_file_per_plane(tmp_path, size=256), tmp_path / "positions", format="ome-zarr")
         multiscales = ngff_zarr.from_ngff_zarr(str(store))
         for level, image in enumerate(multiscales.images):
             offset = 0.5 * (2**level - 1) * 2.5
@@ -144,7 +144,7 @@ class TestTheStore:
 
     def test_a_flat_capture_retains_its_specimen_height(self, tmp_path):
         # Display placement belongs to the aggregate, never the original store.
-        store = position_store_from_record(one_file_per_plane(tmp_path), tmp_path / "positions")
+        store = position_from_record(one_file_per_plane(tmp_path), tmp_path / "positions", format="ome-zarr")
         description = json.loads((store / "zarr.json").read_text())
         finest = description["attributes"]["ome"]["multiscales"][0]["datasets"][0]
         kinds = {t["type"]: t for t in finest["coordinateTransformations"]}
@@ -176,7 +176,7 @@ class TestTheStore:
         high["position_label"] = "K00_M000000_G000000_P000008_V00"
         high["planes"][0]["z_um"] = 137.5
         for record, taken_at in ((low, -410.0), (high, 137.5)):
-            store = position_store_from_record(record, tmp_path / "positions")
+            store = position_from_record(record, tmp_path / "positions", format="ome-zarr")
             description = json.loads((store / "zarr.json").read_text())
             dataset = description["attributes"]["ome"]["multiscales"][0]["datasets"][0]
             transforms = {item["type"]: item for item in dataset["coordinateTransformations"]}
@@ -189,9 +189,10 @@ class TestTheStore:
     def test_a_stack_swept_downwards_is_written_ascending(self, tmp_path, acquisition_type):
         """Planes captured at 12, 10, 8 um land in the array as 8, 10, 12:
         positive spacing, the lowest plane first and in the translation."""
-        store = position_store_from_record(
+        store = position_from_record(
             a_z_stack(tmp_path, acquisition_type=acquisition_type),
             tmp_path / "positions",
+            format="ome-zarr",
         )
         description = json.loads((store / "zarr.json").read_text())
         dataset = description["attributes"]["ome"]["multiscales"][0]["datasets"][0]
@@ -220,12 +221,14 @@ class TestTheStore:
         pixels at the same heights; only the provenance tells them apart."""
         (tmp_path / "up").mkdir()
         (tmp_path / "down").mkdir()
-        upwards = position_store_from_record(
+        upwards = position_from_record(
             a_z_stack(tmp_path / "up", heights=(8.0, 10.0, 12.0), requested_z=None),
             tmp_path / "up" / "positions",
+            format="ome-zarr",
         )
-        downwards = position_store_from_record(
-            a_z_stack(tmp_path / "down", requested_z=None), tmp_path / "down" / "positions"
+        downwards = position_from_record(
+            a_z_stack(tmp_path / "down", requested_z=None), tmp_path / "down" / "positions",
+            format="ome-zarr",
         )
         geometry = []
         for store in (upwards, downwards):
@@ -255,12 +258,13 @@ class TestTheStore:
         for plane in record["planes"]:
             plane["z_um"] = None
         with pytest.raises(RuntimeError, match="no stage z"):
-            position_store_from_record(record, tmp_path / "positions")
+            position_from_record(record, tmp_path / "positions", format="ome-zarr")
 
     def test_a_stack_below_the_stage_origin_has_a_negative_translation(self, tmp_path):
-        store = position_store_from_record(
+        store = position_from_record(
             a_z_stack(tmp_path, heights=(-3.0, -6.0, -9.0), requested_z=None),
             tmp_path / "positions",
+            format="ome-zarr",
         )
         described = json.loads((store / "zarr.json").read_text())
         dataset = described["attributes"]["ome"]["multiscales"][0]["datasets"][0]
@@ -270,7 +274,7 @@ class TestTheStore:
 
     def test_a_whole_capture_file_lands_channel_by_channel(self, tmp_path):
         record = one_file_whole_capture(tmp_path, channels=3, size=128)
-        store = position_store_from_record(record, tmp_path / "positions")
+        store = position_from_record(record, tmp_path / "positions", format="ome-zarr")
         finest = zarr.open_array(str(store / "0"), mode="r")
         assert finest.shape == (1, 3, 1, 128, 128)
         original = tifffile.imread(record["planes"][0]["path"])
@@ -285,7 +289,7 @@ class TestTheStore:
             resolution=(4000, 4000), resolutionunit="CENTIMETER",
             metadata={"axes": "YX"},
         )
-        store = position_store_from_record(record, tmp_path / "positions")
+        store = position_from_record(record, tmp_path / "positions", format="ome-zarr")
         finest = zarr.open_array(str(store / "0"), mode="r")
         coarser = zarr.open_array(str(store / "1"), mode="r")
         expected = np.rint(
@@ -301,7 +305,7 @@ class TestTheStore:
 
     def test_no_planes_is_a_sentence(self, tmp_path):
         with pytest.raises(RuntimeError, match="no planes"):
-            position_store_from_record(a_record([]), tmp_path / "positions")
+            position_from_record(a_record([]), tmp_path / "positions", format="ome-zarr")
 
     def test_an_unspoken_axis_is_refused_by_name(self, tmp_path):
         # A plain 3-D stack with no description: tifffile reports its leading
@@ -312,7 +316,7 @@ class TestTheStore:
             {"t": 0, "c": 0, "z": 0, "path": str(path), "x_um": 0.0, "y_um": 0.0, "z_um": 0.0}
         ])
         with pytest.raises(RuntimeError, match="axis the record says nothing about"):
-            position_store_from_record(record, tmp_path / "positions")
+            position_from_record(record, tmp_path / "positions", format="ome-zarr")
 
 
 class TestAStoreIsPublishedWhole:
@@ -324,7 +328,7 @@ class TestAStoreIsPublishedWhole:
     def test_the_store_lands_under_its_own_name_and_nothing_is_left_beside_it(self, tmp_path):
         record = one_file_per_plane(tmp_path / "capture", channels=1, size=64)
         positions = tmp_path / "positions" / "overview"
-        store = position_store_from_record(record, positions)
+        store = position_from_record(record, positions, format="ome-zarr")
         assert store == positions / "overview_K00_M000000_G000000_P000007_V00.ome.zarr"
         assert store.is_dir()
         assert sorted(child.name for child in positions.iterdir()) == [store.name]
@@ -338,7 +342,7 @@ class TestAStoreIsPublishedWhole:
         while writing, ran to 270 under a staging folder named after the
         store, and the store was never written. The name it is published
         under is the only long one; while it is built, the path is short."""
-        from .zarr_positions import _a_place_to_write
+        from .positions import _a_place_to_write
 
         into = tmp_path / "positions" / "target-focussing"
         built = _a_place_to_write(into, "target-focussing_K00_M000000_G000000_P000005_V00.ome.zarr")
@@ -348,13 +352,13 @@ class TestAStoreIsPublishedWhole:
     def test_every_level_is_filled_before_the_store_appears(self, tmp_path, monkeypatch):
         """Watched the way the viewer watches: the moment the published name
         exists, all of its copies must already hold pixels."""
-        from . import zarr_positions
+        from . import positions as writer
 
         record = one_file_per_plane(tmp_path / "capture", channels=1, size=256)
         positions = tmp_path / "positions" / "overview"
         published = positions / "overview_K00_M000000_G000000_P000007_V00.ome.zarr"
         seen_before_publication = []
-        original = zarr_positions._publish
+        original = writer._publish
 
         def watched(built, into):
             # the last moment before publication: the watched folder is empty,
@@ -367,16 +371,16 @@ class TestAStoreIsPublishedWhole:
                 )
             return original(built, into)
 
-        monkeypatch.setattr(zarr_positions, "_publish", watched)
-        position_store_from_record(record, positions)
+        monkeypatch.setattr(writer, "_publish", watched)
+        position_from_record(record, positions, format="ome-zarr")
         assert seen_before_publication == [False]
 
     def test_a_rerun_replaces_the_store_under_the_same_name(self, tmp_path):
         record = one_file_per_plane(tmp_path / "capture", channels=1, size=64)
         positions = tmp_path / "positions" / "overview"
-        first = position_store_from_record(record, positions)
+        first = position_from_record(record, positions, format="ome-zarr")
         record["planes"][0]["x_um"] = 4321.0
-        second = position_store_from_record(record, positions)
+        second = position_from_record(record, positions, format="ome-zarr")
         assert first == second
         described = json.loads((second / "zarr.json").read_text(encoding="utf-8"))
         translation = described["attributes"]["ome"]["multiscales"][0]["datasets"][0][
@@ -415,7 +419,7 @@ class TestADeniedRename:
             return real(src, dst, *args, **kwargs)
 
         monkeypatch.setattr(os, "replace", denied_once)
-        store = position_store_from_record(one_file_per_plane(tmp_path), tmp_path / "positions")
+        store = position_from_record(one_file_per_plane(tmp_path), tmp_path / "positions", format="ome-zarr")
         assert denied["n"] == 1
         assert (store / "zarr.json").is_file()
         assert zarr.open_group(str(store), mode="r")["0"].shape[-1] == 256
@@ -431,7 +435,7 @@ class TestADeniedRename:
 
         monkeypatch.setattr(os, "replace", always_denied)
         with pytest.raises(PermissionError, match="denied"):
-            position_store_from_record(one_file_per_plane(tmp_path), tmp_path / "positions")
+            position_from_record(one_file_per_plane(tmp_path), tmp_path / "positions", format="ome-zarr")
 
 
 def a_frame_at(folder, x_um, y_um, *, value, size=64, name):
@@ -460,7 +464,7 @@ def test_target_frames_compose_and_raise_without_rewriting_originals(tmp_path, b
         a_frame_at(tmp_path / "raw", 256, 256, value=1000, size=512, name="P0"),
         a_frame_at(tmp_path / "raw", 297, 256, value=0, size=512, name="P1"),
     ]
-    stores = [position_store_from_record(record, into) for record in records]
+    stores = [position_from_record(record, into, format="ome-zarr") for record in records]
     originals = {p: p.read_bytes() for store in stores for p in store.rglob("*") if p.is_file()}
     names = [store.name for store in stores]
     view = PublishedAcquisition(into, piece=64)

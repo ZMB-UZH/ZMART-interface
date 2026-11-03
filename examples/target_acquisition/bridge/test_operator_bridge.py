@@ -668,7 +668,7 @@ def test_the_targets_are_taken_one_by_one_as_the_page_drives_them(driver, monkey
     ledger a reopened page can read, since the number it holds."""
     kept = []
     monkeypatch.setattr(output, "move_record_images", lambda record, where: None)
-    monkeypatch.setattr(pictures, "keep_position_as_zarr", lambda record, kind: kept.append((record["position_label"], kind)))
+    monkeypatch.setattr(pictures, "keep_the_position", lambda record, kind: kept.append((record["position_label"], kind)))
     got = _targets_taken([
         {"x": 10, "y": 20, "z": 5, "position_index": 0},
         {"x": 30, "y": 40, "z": 6, "position_index": 1},
@@ -690,7 +690,7 @@ def test_the_targets_are_taken_one_by_one_as_the_page_drives_them(driver, monkey
 def test_rerunning_one_target_keeps_the_other_pairs(driver, monkeypatch):
     """A selected target is reacquired without throwing the others away."""
     monkeypatch.setattr(output, "move_record_images", lambda record, where: None)
-    monkeypatch.setattr(pictures, "keep_position_as_zarr", lambda record, kind: None)
+    monkeypatch.setattr(pictures, "keep_the_position", lambda record, kind: None)
     _targets_taken([
         {"x": 10, "y": 20, "position_index": 0}, {"x": 30, "y": 40, "position_index": 1},
     ])
@@ -710,7 +710,7 @@ def test_a_target_is_focussed_first_when_the_page_asks(driver, monkeypatch):
     captured at the peak; the record says which height and why."""
     monkeypatch.setattr(output, "move_record_images", lambda record, where: None)
     kept = []
-    monkeypatch.setattr(pictures, "keep_position_as_zarr", lambda record, kind: kept.append(kind))
+    monkeypatch.setattr(pictures, "keep_the_position", lambda record, kind: kept.append(kind))
     driver.at["z"] = 12.0
     _targets_taken([{"x": 10, "y": 20, "z": 12, "position_index": 0}], focus=True)
     assert driver.captured == [
@@ -1456,7 +1456,7 @@ def test_shorter_rerun_preserves_the_live_aggregate_and_republishes_coverage(mon
     from zmart_viewer import STORE, PublishedAcquisition
 
     from ..storage.images import declare_image
-    from ..storage.zarr_positions import _describe_mean_pyramid
+    from ..storage.positions import _describe_mean_pyramid
 
     positions = state.run / "positions" / "overview"
     names = ["overview_kept.ome.zarr", "overview_retired.ome.zarr"]
@@ -1514,8 +1514,8 @@ def test_starting_a_scan_names_the_stores_it_keeps_by_the_new_plan(driver, monke
     monkeypatch.setattr(threading, "Thread", lambda **kw: type("T", (), {"start": lambda self: None})())
     scan.start_scan({"positions": [{"x": 0, "y": 0}, {"x": 1, "y": 0}], "acquisition_type": "overview"})
     assert asked == [("overview", {
-        "overview_K00_M000000_G000000_P000000_V00.ome.zarr",
-        "overview_K00_M000000_G000000_P000001_V00.ome.zarr",
+        "overview_K00_M000000_G000000_P000000_V00.ome.tif",
+        "overview_K00_M000000_G000000_P000001_V00.ome.tif",
     })]
 
 
@@ -1578,7 +1578,7 @@ def test_a_targets_scan_publishes_separate_originals_and_raises_by_order(mock_in
             time.sleep(0.1)
         assert ledgers.scan["error"] is None, ledgers.scan["error"]
         assert ledgers.scan["done"] == 2
-        assert not [r.get("zarr_error") for r in ledgers.scan["records"] if r.get("zarr_error")]
+        assert not [r.get("position_error") for r in ledgers.scan["records"] if r.get("position_error")]
         watched = sorted(p.name for p in (state.the_run() / "positions" / "targets").iterdir())
         assert len(watched) == 2 and all(name.startswith("targets_") for name in watched)
         originals = {p: p.read_bytes() for p in (state.the_run() / "positions" / "targets").rglob("*") if p.is_file()}
@@ -1587,7 +1587,7 @@ def test_a_targets_scan_publishes_separate_originals_and_raises_by_order(mock_in
         label = state.records["targets"][0]["position_label"]
         assert targets.raise_target({"position_label": label}) == {"raised": label}
         assert raised == [("targets", state.the_run() / "positions" / "targets",
-                           Path(state.records["targets"][0]["zarr"]))]
+                           Path(state.records["targets"][0]["position_path"]))]
         assert all(p.read_bytes() == data for p, data in originals.items())
         with pytest.raises(ValueError):
             targets.raise_target({"position_label": "nobody"})
@@ -1616,8 +1616,8 @@ def test_targets_are_really_focussed_and_taken_on_the_mock(mock_instrument, monk
     # whole route, and the fake one reads a height the mock does not write.
     monkeypatch.setattr(focus, "score_a_stack", lambda: focus_score.through(warm.the_analysis()))
     kept = []
-    real_keep = pictures.keep_position_as_zarr
-    monkeypatch.setattr(pictures, "keep_position_as_zarr", lambda record, kind: (real_keep(record, kind), kept.append((kind, record))))
+    real_keep = pictures.keep_the_position
+    monkeypatch.setattr(pictures, "keep_the_position", lambda record, kind: (real_keep(record, kind), kept.append((kind, record))))
     try:
         # The map first, as a run has it: the coarse job finds the tissue
         # from wherever the objective stands, and the target is driven to
@@ -1634,7 +1634,7 @@ def test_targets_are_really_focussed_and_taken_on_the_mock(mock_instrument, monk
     assert got["done"] == 1
     record = state.records["targets"][0]
     stack = next(one for kind, one in kept if kind == "target-focussing")
-    assert stack.get("zarr_error") is None, stack["zarr_error"]
+    assert stack.get("position_error") is None, stack["position_error"]
     assert len(stack["planes"]) > 1, "the Focussing job takes a stack"
     assert record["focus"]["found"] is True
     assert (state.run / "target-focussing" / "data").is_dir()

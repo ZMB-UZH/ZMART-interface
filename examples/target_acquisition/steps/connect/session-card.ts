@@ -27,7 +27,7 @@
 
 import { sideGroup } from "zmart-interface/api";
 import { isFailed } from "../../microscope/connection-status.ts";
-import { takeTheSavedSettings, type Choice, type Session } from "../../microscope/instruments.ts";
+import { IMAGE_FORMATS, takeTheSavedSettings, type Choice, type Session } from "../../microscope/instruments.ts";
 import type { Check, ListedProtocol } from "../../shared/run-document.ts";
 
 /** What the card shows and what it does, handed in by the Connect channel. */
@@ -185,7 +185,24 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
       pick.addEventListener("change", () => { session.config = pick.value; });
       return row;
     };
-    working.form.append(configRow(), typed("Output folder", "outputRoot", true));
+    /* How the run's images are saved, decided once for the whole run:
+       every position of it is written the same way, so the choice locks
+       with the rest of the session. */
+    const saving = document.createElement("label");
+    saving.className = "field";
+    saving.innerHTML = "<span>Save images as</span><select></select>";
+    const savingSel = saving.querySelector("select")!;
+    savingSel.id = "image-format";
+    for (const f of IMAGE_FORMATS) {
+      const o = document.createElement("option");
+      o.value = f.key;
+      o.textContent = `${f.label} · ${f.detail}`;
+      savingSel.append(o);
+    }
+    savingSel.value = session.format || IMAGE_FORMATS[0].key;
+    savingSel.disabled = locked;
+    savingSel.addEventListener("change", () => { session.format = savingSel.value; });
+    working.form.append(configRow(), typed("Output folder", "outputRoot", true), saving);
 
     /* The protocol to open on: a new one, or one a finished run wrote on
        this machine. The list is the

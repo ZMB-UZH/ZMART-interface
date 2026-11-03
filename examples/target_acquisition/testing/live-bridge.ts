@@ -4,8 +4,8 @@
  *
  * This points the page at the bridge it actually talks to:
  * the package `zmart_interface/framework/bridge/`, running the mock microscope through
- * the ZMART Controller, writing OME-TIFFs into a folder of its own, an
- * OME-Zarr position per field, and one small JPEG per field beside them.
+ * the ZMART Controller, writing OME-TIFFs into a folder of its own, a
+ * position per field, and one small JPEG per field beside them.
  *
  * Nothing is stood in for. If the pictures do not reach the screen, one of the
  * three joins between a captured plane and a drawn tile is broken, and that is

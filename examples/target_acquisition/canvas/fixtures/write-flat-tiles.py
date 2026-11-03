@@ -3,7 +3,7 @@
     python write-flat-tiles.py <folder> <tiles> [<z_um>,<z_um>,...]
 
 ``<tiles>`` one-plane fields side by side along x, each written through the
-run's own writer (``position_store_from_record``) at its own stage z, a
+run's own writer (``position_from_record``, as OME-Zarr) at its own stage z, a
 fraction of a micrometre apart -- the way a scanned overview lands once a
 focus map has given every field its height. The size the rig's fields are,
 1024 pixels square in two channels, so the stores carry the pyramid levels
@@ -21,8 +21,8 @@ import tifffile
 # imports it: the folder of workflows it sits in goes on the search path.
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from target_acquisition.storage.zarr_positions import (  # noqa: E402
-    position_store_from_record,
+from target_acquisition.storage.positions import (  # noqa: E402
+    position_from_record,
 )
 
 folder = Path(sys.argv[1])
@@ -55,5 +55,5 @@ for index in range(tiles):
         "position_label": f"K00_M000000_G000000_P{index:06d}_V00",
         "planes": planes,
     }
-    store = position_store_from_record(record, folder / "positions")
+    store = position_from_record(record, folder / "positions", format="ome-zarr")
     print(store.relative_to(folder).as_posix())

@@ -119,8 +119,10 @@ def pixel_size_um(path: Path | str) -> float:
     """
     import tifffile
 
-    if _is_a_store(path):
-        return _store_pixel_size_um(path)
+    from . import positions  # noqa: PLC0415
+
+    if positions.is_a_position(path):
+        return positions.pixel_size_um_of(path)
     with tifffile.TiffFile(path) as tif:
         described = tif.pages[0].description
     try:
@@ -157,10 +159,12 @@ def _flatten(planes: list[Plane]) -> Any:
     import numpy as np
     import tifffile
 
+    from . import positions  # noqa: PLC0415
+
     channels: dict[int, Any] = {}
     for plane in planes:
         frame = np.asarray(
-            _store_plane(plane) if _is_a_store(plane.path) else tifffile.imread(plane.path)
+            _position_plane(plane) if positions.is_a_position(plane.path) else tifffile.imread(plane.path)
         )
         while frame.ndim > 2:
             frame = frame.max(axis=0)
@@ -169,25 +173,12 @@ def _flatten(planes: list[Plane]) -> Any:
     return _colour_channels(channels)
 
 
-def _is_a_store(path: Path | str) -> bool:
-    """Whether a plane's path is an OME-Zarr store (indexed by c, z, t) rather than a file."""
-    return str(path).endswith(".ome.zarr") and Path(path).is_dir()
+def _position_plane(plane: Plane) -> Any:
+    """One plane of a position the driver saved, at full size, in either format."""
+    from ..analysis.workflows import step_module  # noqa: PLC0415
 
-
-def _store_plane(plane: Plane) -> Any:
-    """One plane of a driver's OME-Zarr store, at full resolution (axes t, c, z, y, x)."""
-    import zarr
-
-    return zarr.open_group(str(plane.path), mode="r")["0"][plane.t, plane.c, plane.z]
-
-
-def _store_pixel_size_um(path: Path | str) -> float:
-    """The x size of one full-resolution voxel, from the store's own description."""
-    attributes = json.loads((Path(path) / "zarr.json").read_text(encoding="utf-8"))["attributes"]
-    multiscale = (attributes.get("ome") or attributes)["multiscales"][0]
-    full = multiscale["datasets"][0]["coordinateTransformations"]
-    scale = next(transform["scale"] for transform in full if transform["type"] == "scale")
-    return float(scale[-1])
+    load_plane = step_module("object_analysis", "read_images").load_plane
+    return load_plane(plane.path, t=plane.t, c=plane.c, z=plane.z)[0]
 
 
 def _colour_channels(channels):

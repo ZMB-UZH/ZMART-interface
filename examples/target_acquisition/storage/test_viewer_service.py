@@ -41,7 +41,7 @@ def _empty_service(*, port: int | None = None) -> dict:
 @pytest.mark.parametrize("opened_overview", [False, True])
 def test_invalid_overview_does_not_hide_committed_targets(monkeypatch, tmp_path, bad_first, opened_overview):
     from .images import declare_image
-    from .zarr_positions import _describe_mean_pyramid
+    from .positions import _describe_mean_pyramid
 
     def write(kind, name, pixel, value):
         folder = tmp_path / kind
@@ -174,7 +174,7 @@ def test_the_installed_viewer_is_a_version_this_interface_accepts():
     assert Path(found["path"]).name == "__init__.py"
 
 
-@pytest.mark.parametrize("installed_version", ["0.5.0rc10", "0.5.0", "0.5.3"])
+@pytest.mark.parametrize("installed_version", ["0.5.0rc11", "0.5.0", "0.5.3"])
 def test_the_tested_viewer_line_is_accepted(installed_version):
     service._accept_the_version(installed_version)
 
@@ -183,7 +183,7 @@ def test_the_tested_viewer_line_is_accepted(installed_version):
     "installed_version",
     [
         "0.4.0", "0.5.0.dev0", "0.5.0rc1", "0.5.0rc3", "0.5.0rc4", "0.5.0rc5", "0.5.0rc6",
-        "0.5.0rc7", "0.5.0rc8", "0.5.0rc9", "0.6.0", "1.0.0",
+        "0.5.0rc7", "0.5.0rc8", "0.5.0rc9", "0.5.0rc10", "0.6.0", "1.0.0",
     ],
 )
 def test_a_viewer_outside_the_tested_line_is_refused(installed_version):
@@ -918,7 +918,7 @@ def test_real_viewer_publishes_100_positions_without_holding_up_notifications(
             )
             arrays[0][:] = i + 1
             arrays[1][:] = i + 1
-            from .zarr_positions import _describe_mean_pyramid
+            from .positions import _describe_mean_pyramid
             description_path = staging / "zarr.json"
             description = json.loads(description_path.read_text())
             _describe_mean_pyramid(description)

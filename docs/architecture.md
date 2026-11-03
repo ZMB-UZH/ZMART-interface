@@ -215,8 +215,14 @@ reading of every motor under `actuator_readings`, the one it moved by as
 picture can show, the travel widened by half a field. The travel stays in
 the driver: a move past it is refused with a sentence the operator sees.
 
-Every capture is converted the moment it lands into one OME-Zarr image per
-position (`storage/zarr_positions.py`). The viewer's server, started beside
+Every capture becomes one position the moment it lands, in the format chosen
+on the Connect step: one OME-TIFF file (the default) or one OME-Zarr image per
+position (`storage/positions.py`). Both are placed by the same OME-Zarr rules:
+an OME-TIFF carries the very description its OME-Zarr twin would have, in
+ZMART's note inside its OME-XML. The format also goes to the driver in the
+connection, so a driver that saves positions itself saves them the same way.
+`storage/positions.py` is the one place that knows the two formats apart.
+The viewer's server, started beside
 the run by `storage/viewer_service.py`, links each acquisition's positions
 into one live picture and serves it to the page's drawing engine. Focus
 scoring, object detection and the population plots run as ZMART-analysis

@@ -185,11 +185,13 @@ export const backend: Backend = {
   async connect(session: Opening | null | undefined, { onChecks, onCheck }: Connecting = {}) {
     /* What the operator typed travels with the connection: the bridge puts
        it over the connection saved for the driver. What a driver does with
-       it is the driver's business: a word it does not need, it leaves. */
+       it is the driver's business: a word it does not need, it leaves.
+       `format` is how the run's images are saved, chosen once per run. */
     await ask(`${OURS}/connect`, {
       instrument: session?.instrument, host: session?.host, client: session?.client, config: session?.config,
       password: session?.password,
       output_root: session?.outputRoot, experiment: EXPERIMENT,
+      format: session?.format,
     });
     let keys: string[] | null = null;
     const answered = new Set<string>();

@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from target_acquisition.storage import viewer_service as service  # noqa: E402
 from target_acquisition.storage.images import declare_image  # noqa: E402
-from target_acquisition.storage.zarr_positions import (  # noqa: E402
+from target_acquisition.storage.positions import (  # noqa: E402
     _describe_mean_pyramid,
 )
 

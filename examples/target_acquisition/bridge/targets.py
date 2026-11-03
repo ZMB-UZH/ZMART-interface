@@ -18,6 +18,7 @@ from pathlib import Path
 from ..microscope.focus_run import measure_one_stack
 from ..storage import output, viewer_service
 from ..storage.output import prepare_acquisition
+from ..storage.positions import name_of_a_position
 from . import focus, ledgers, pictures, scan, stage, state
 
 #: The stacks taken before a target when the operator asked for focussing
@@ -53,7 +54,10 @@ def begin_target_run(asked: dict) -> dict:
         state.records["targets"] = []
         pictures.replace_the_acquisition(
             "targets",
-            keeping={f"targets_{scan.label_for(i, p)}.ome.zarr" for i, p in enumerate(positions)},
+            keeping={
+                name_of_a_position("targets", scan.label_for(i, p), state.image_format)
+                for i, p in enumerate(positions)
+            },
         )
         # The focussing stacks belong to the run they were taken for.
         pictures.replace_the_acquisition(TARGET_FOCUSSING)
@@ -80,7 +84,7 @@ def score_target_focus(asked: dict) -> dict:
         asked["record"], x=float(asked["x"]), y=float(asked["y"]), centre=float(asked["centre"]),
         score=focus.score_a_stack(), index=ledgers.acquired["done"],
         output=prepare_acquisition(state.the_run(), TARGET_FOCUSSING),
-        keep=lambda landed: pictures.keep_position_as_zarr(landed, TARGET_FOCUSSING),
+        keep=lambda landed: pictures.keep_the_position(landed, TARGET_FOCUSSING),
     )
     return {
         "z": measurement["z_um"], "lost": measurement["z_um"] is None,
@@ -115,7 +119,7 @@ def target_landed(asked: dict) -> dict:
     )
     with state.the_instruments_turn:
         output.move_record_images(record, prepare_acquisition(state.the_run(), "targets"))
-    pictures.keep_position_as_zarr(record, "targets")
+    pictures.keep_the_position(record, "targets")
     records = state.records.setdefault("targets", [])
     replaced = next(
         (at for at, old in enumerate(records)
@@ -157,5 +161,5 @@ def raise_target(asked: dict) -> dict:
     if record is None:
         raise ValueError(f"no acquired target is labelled {label!r}")
     folder = state.the_run() / "positions" / "targets"
-    viewer_service.raise_position("targets", folder, Path(record["zarr"]))
+    viewer_service.raise_position("targets", folder, Path(record["position_path"]))
     return {"raised": label}

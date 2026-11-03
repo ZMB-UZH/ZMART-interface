@@ -145,7 +145,7 @@ def _the_measurement(x, y, found: dict, cost: dict, record: dict | None) -> dict
         "z_um": found.get("z_um"),
         "traces": found.get("traces"),
         "cost_s": {key: round(value, 3) for key, value in cost.items()},
-        "zarr": (record or {}).get("zarr"),
+        "position_path": (record or {}).get("position_path"),
         # The stack's own files ride with the measurement, height by
         # height, so the chosen number can be looked at as well as read.
         "planes": [

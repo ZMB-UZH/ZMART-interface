@@ -198,6 +198,8 @@ export interface Opening {
   client?: string;
   config?: string;
   outputRoot?: string;
+  /** How the run's images are saved: "ome-tiff" or "ome-zarr". */
+  format?: string;
   [more: string]: unknown;
 }
 

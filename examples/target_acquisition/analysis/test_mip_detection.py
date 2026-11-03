@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import tifffile
 
-from ..storage.test_zarr_positions import a_z_stack
-from ..storage.zarr_positions import position_store_from_record
+from ..storage.positions import position_from_record
+from ..storage.test_positions import a_z_stack
 from . import detection
 from .workflows import step_module
 
@@ -23,7 +23,7 @@ def test_capture_channels_match_first_timepoint_reader(tmp_path):
     record = a_z_stack(tmp_path, heights=(0,), acquisition_type="overview")
     plane = record["planes"][0]
     record["planes"] = [{**plane, "t": t, "c": c} for t in (4, 5) for c in (2, 7)]
-    record["zarr"] = str(position_store_from_record(record, tmp_path / "positions"))
+    record["position_path"] = str(position_from_record(record, tmp_path / "positions", format="ome-zarr"))
     given = detection.what_was_captured(record, field=0, settings={})
     assert given["channels"] == [0]
     assert given["extra_channel_indices"] == [1]
@@ -40,7 +40,7 @@ def test_real_detector_sees_objects_outside_middle_plane(tmp_path, depth):
         if i == depth - 1:
             image[(xx - 44) ** 2 + (yy - 44) ** 2 < 7**2] = 20000
         tifffile.imwrite(plane["path"], image)
-    record["zarr"] = str(position_store_from_record(record, tmp_path / "positions"))
+    record["position_path"] = str(position_from_record(record, tmp_path / "positions", format="ome-zarr"))
     given = detection.what_was_captured(
         record,
         field=0,
@@ -50,8 +50,8 @@ def test_real_detector_sees_objects_outside_middle_plane(tmp_path, depth):
     assert "tile_z_um" not in given
     assert given["diameter"] == 14  # the store's 1 um/px
     assert given["border_margin_px"] == 2
-    old = segmented(record["zarr"], "mid")
-    result = segmented(record["zarr"], given["z_selection"])
+    old = segmented(record["position_path"], "mid")
+    result = segmented(record["position_path"], given["z_selection"])
     assert old["n_objects"] == 0
     assert result["masks"][20, 20] > 0
     assert result["masks"][44, 44] > 0
@@ -66,7 +66,7 @@ def test_real_detector_sees_objects_outside_middle_plane(tmp_path, depth):
         if i == 0:
             image[(xx - 32) ** 2 + (yy - 32) ** 2 < 7**2] = 15000
         tifffile.imwrite(plane["path"], image)
-    assert str(position_store_from_record(record, tmp_path / "positions")) == record["zarr"]
-    rewritten = segmented(record["zarr"], "max")
+    assert str(position_from_record(record, tmp_path / "positions", format="ome-zarr")) == record["position_path"]
+    rewritten = segmented(record["position_path"], "max")
     assert rewritten["masks"][32, 32] > 0
     assert rewritten["masks"][20, 20] == rewritten["masks"][44, 44] == 0

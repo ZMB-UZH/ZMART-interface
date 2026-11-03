@@ -69,7 +69,7 @@ def a_run_without_pictures(tmp_path, monkeypatch):
     monkeypatch.setattr(state, "output_root", str(tmp_path))
     monkeypatch.setattr(state, "records", {})
     monkeypatch.setattr(scan.output, "move_record_images", lambda record, data: record)
-    monkeypatch.setattr(pictures, "keep_position_as_zarr", lambda record, kind: None)
+    monkeypatch.setattr(pictures, "keep_the_position", lambda record, kind: None)
     monkeypatch.setattr(pictures, "replace_the_acquisition", lambda kind, keeping=frozenset(): None)
     ledgers.scan.update(running=False, stopped=False, error=None)
     ledgers.stop_asked["scan"] = False

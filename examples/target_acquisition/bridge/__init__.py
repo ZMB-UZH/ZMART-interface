@@ -8,7 +8,7 @@ the microscope lives here:
   session through the ZMART Controller, and the run folder made at connect;
 - ``readings`` and ``stage``: the instrument's settings, a capture, and
   where the stage is and where it is sent;
-- ``pictures``: each capture kept as an OME-Zarr position, and the pictures
+- ``pictures``: each capture kept as a position (OME-TIFF or OME-Zarr), and the pictures
   the page fetches, made from the records on request;
 - ``state``: what is kept between two requests, and the instrument's lock;
 - ``starting``: what this half does when the interface starts and closes;

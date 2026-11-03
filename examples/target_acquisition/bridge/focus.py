@@ -70,9 +70,9 @@ def score_focus(asked: dict) -> dict:
         record, x=float(point["x"]), y=float(point["y"]), centre=float(asked["centre"]),
         score=score_a_stack(), index=index,
         output=prepare_acquisition(state.the_run(), FOCUSSING),
-        # Every focus stack also stands as an OME-Zarr position, so the
+        # Every focus stack also stands as a position of the run, so the
         # focussing is a source of its own in the viewer.
-        keep=lambda landed: pictures.keep_position_as_zarr(landed, FOCUSSING),
+        keep=lambda landed: pictures.keep_the_position(landed, FOCUSSING),
         cost=asked.get("cost_s"),
     )
     stage.the_stage_was_sent_to(
@@ -85,7 +85,7 @@ def score_focus(asked: dict) -> dict:
         "lost": measurement["z_um"] is None, "traces": measurement["traces"],
         "cost_s": measurement.get("cost_s"),
         "slices": views.the_slice_copies_of(measurement.get("planes") or [],
-                                      store=measurement.get("zarr")),
+                                      store=measurement.get("position_path")),
     }
     ledgers.focus["points"].append(landed)
     ledgers.focus["done"] = len(ledgers.focus["points"])

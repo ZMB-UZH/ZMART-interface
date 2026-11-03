@@ -128,7 +128,9 @@ const inTheInstrument = {
 test.describe("the target acquisition workflow, walked screen by screen", () => {
   test.setTimeout(A_WHOLE_WALK);
 
-  for (const bake of [true]) test(`from Connect to acquired targets, bake ${bake ? "on" : "off"}`, async ({ page }) => {
+  /* Walked once for each way a run can be saved: every step must work the
+     same whether the positions are OME-TIFF files or OME-Zarr images. */
+  for (const [bake, format] of [[true, "ome-tiff"], [true, "ome-zarr"]] as const) test(`from Connect to acquired targets, bake ${bake ? "on" : "off"}, saved as ${format}`, async ({ page }) => {
     const bridge = await startTheBridge({ port: PORT });
     const errors: string[] = [];
     const imageRequests: string[] = [];
@@ -147,6 +149,9 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       const scope = page.locator(".panel.on .session-form select").first();
       await expect(scope).toHaveValue(/mock/);
       await expect(page.locator("#protocol-pick")).toBeEnabled();
+      /* How the run's images are saved: OME-TIFF unless the operator says otherwise. */
+      await expect(page.locator("#image-format")).toHaveValue("ome-tiff");
+      await page.locator("#image-format").selectOption(format);
       await page.locator(".panel.on .session-buttons button.run").click();
       await expect(page.locator('.step.done:has-text("Connect")')).toBeVisible({ timeout: 60_000 });
       await expect(page.locator(".check-row.pending")).toHaveCount(0);
@@ -268,7 +273,10 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       expect(labelled.map((label: string) => Number(/_P(\d+)_/.exec(label)![1])),
         `each label is the tile's place in the plan: ${labelled.join(", ")} for ${scannedFields.join(", ")}`)
         .toEqual([...scannedFields].sort((a, b) => a - b));
-      expect(overview.records.filter((record: { zarr_error?: unknown }) => record.zarr_error)).toEqual([]);
+      expect(overview.records.filter((record: { position_error?: unknown }) => record.position_error)).toEqual([]);
+      const ending = format === "ome-tiff" ? ".ome.tif" : ".ome.zarr";
+      expect(overview.records.map((record: { position_path: string }) => record.position_path.endsWith(ending)),
+        `every position is saved as ${format}`).toEqual(overview.records.map(() => true));
       await expect(page.locator(".panel.on button.step-run")).toHaveText("Run again", { timeout: 60_000 });
       await rest(3000);
       await shot(page, "scan-done");
@@ -753,7 +761,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         expect(await page.evaluate(() => window.__theStageCanvas!.layerShown("ground"))).toBe(true);
         const acquired = await ask(page, PORT, "/api/target_acquisition/targets/acquire");
         expect(acquired.error).toBeNull();
-        expect(acquired.records.filter((record: { zarr_error?: unknown }) => record.zarr_error)).toEqual([]);
+        expect(acquired.records.filter((record: { position_error?: unknown }) => record.position_error)).toEqual([]);
         expect(acquired.records.length, "the ledger holds a record a tile").toBe(run.targetTiles);
         for (const one of acquired.records) {
           expect(one.requested_position_um.z - one.focus.z_peak_um, "taken 2 µm above the peak").toBeCloseTo(2, 6);
