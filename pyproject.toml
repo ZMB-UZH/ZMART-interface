@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zmart-interface"
-version = "0.2.0rc3"
+version = "0.2.0rc4"
 description = "The ZMART operator window: walk a smart-microscopy run step by step, on any microscope the ZMART Controller drives."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -20,24 +20,20 @@ classifiers = [
 # What the interface needs to run. The ZMART packages are not on PyPI, so
 # they are installed from their own repositories, each pinned to a release:
 # the versions written here are the ones that were tested together.
-# For 0.2.0rc3 the ZMART parts are installed from thomdehoog's repositories,
-# where these release candidates were tagged first, so the release can be
-# tested on the microscope before ZMB-UZH has them. Once ZMB-UZH carries the
-# same tags, these addresses go back to github.com/ZMB-UZH.
 dependencies = [
     # The one way to drive any microscope; every command goes through it. The
     # interface opens a ZmartController of its own and lists the drivers the
     # controller's registry knows. Its acquire is given the kind of acquisition
     # and the folder to save in.
-    "zmart-controller @ git+https://github.com/thomdehoog/ZMART-controller@v0.4.0rc9",
+    "zmart-controller @ git+https://github.com/ZMB-UZH/ZMART-controller@v0.4.0rc9",
     # The picture server that shows the run as it is acquired. Pinned to a
     # release, because the page is built with the viewer's drawing files: the
     # build stops when the installed viewer is not this one.
-    "zmart-viewer @ git+https://github.com/thomdehoog/ZMART-viewer@v0.5.0rc11",
+    "zmart-viewer @ git+https://github.com/ZMB-UZH/ZMART-viewer@v0.5.0rc11",
     # The engine that scores focus and finds objects, each step in its own
     # environment (the zmart_analysis package). Its workflows stay in a
     # checkout of the repository; see examples/target_acquisition/analysis/workflows.py.
-    "zmart-analysis @ git+https://github.com/thomdehoog/ZMART-analysis@v0.6.0rc10",
+    "zmart-analysis @ git+https://github.com/ZMB-UZH/ZMART-analysis@v0.6.0rc10",
     # Reading and writing the OME-Zarr positions a run can be kept as.
     "ngio==1.1.0",
     "zarr>=3,<4",
@@ -64,7 +60,7 @@ dependencies = [
 [project.optional-dependencies]
 # The drivers for real microscopes. Install the extra of the driver too, for
 # example the Leica's: pip install "zmart-drivers[leica] @ git+...".
-drivers = ["zmart-drivers @ git+https://github.com/thomdehoog/ZMART-drivers@v0.7.0b10"]
+drivers = ["zmart-drivers @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b10"]
 # What working on the interface needs beyond running it: pytest, the reader
 # of the OME description inside a TIFF, which the analysis steps run in-process
 # use, and ruff, which checks the Python as the automatic checks do (pinned, so

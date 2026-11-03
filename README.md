@@ -28,7 +28,7 @@ The ZMART interface provides a unified interactive framework and playground that
 <br>
 
 ## Status
-This is a release candidate, 0.2.0rc3. We are currently in the process of testing it on the Leica Stellaris.
+This is a release candidate, 0.2.0rc4. We are currently in the process of testing it on the Leica Stellaris.
 
 ## A framework, and the workflows you run in it
 The interface is a framework: installing it gives you the operator window and
