@@ -175,10 +175,9 @@ def _flatten(planes: list[Plane]) -> Any:
 
 def _position_plane(plane: Plane) -> Any:
     """One plane of a position the driver saved, at full size, in either format."""
-    from ..analysis.workflows import step_module  # noqa: PLC0415
+    from . import positions  # noqa: PLC0415
 
-    load_plane = step_module("object_analysis", "read_images").load_plane
-    return load_plane(plane.path, t=plane.t, c=plane.c, z=plane.z)[0]
+    return positions.plane_of(plane.path, t=plane.t, c=plane.c, z=plane.z)
 
 
 def _colour_channels(channels):

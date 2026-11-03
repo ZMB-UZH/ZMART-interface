@@ -188,6 +188,28 @@ def pixel_size_um_of(position: Path | str) -> float:
     raise RuntimeError(f"the position {position} does not say its pixel size")
 
 
+def plane_of(position: Path | str, *, t: int, c: int, z: int) -> np.ndarray:
+    """One full-size plane of a position, at time ``t``, channel ``c`` and depth ``z``.
+
+    Only that plane is read: from an OME-Zarr image its own chunks, from an
+    OME-TIFF its own page. Planes are stored with z changing fastest, then
+    the channel, then time, as every ZMART position is written.
+    """
+    position = Path(position)
+    if position.name.lower().endswith(_TIFF_ENDINGS):
+        import tifffile
+
+        with tifffile.TiffFile(position) as tif:
+            series = tif.series[0]
+            size = dict(zip(series.axes.upper(), series.shape, strict=True))
+            index = (t * size.get("C", 1) + c) * size.get("Z", 1) + z
+            return series.pages[index].asarray()
+    import zarr  # noqa: PLC0415
+
+    full_size = _the_description_of(position)["datasets"][0]["path"]
+    return np.asarray(zarr.open_array(str(position / full_size), mode="r")[t, c, z])
+
+
 def name_of_a_position(kind: str, label: str, format: str) -> str:
     """What a position is called: ``overview_P000001.ome.tif``, say."""
     return f"{kind}_{label}{ENDINGS[format]}"
