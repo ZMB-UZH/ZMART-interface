@@ -79,7 +79,7 @@ says how a folder of workflows is laid out and how its page is built.
 
 ```powershell
 cd <approved>
-git clone -b v0.6.0rc9 https://github.com/ZMB-UZH/ZMART-analysis
+git clone -b v0.6.0rc10 https://github.com/ZMB-UZH/ZMART-analysis
 conda env create -f ZMART-analysis\examples\focus\environments\main.yml
 conda env create -f ZMART-analysis\examples\object_analysis\environments\classical.yml
 conda env create -f ZMART-analysis\examples\object_analysis\environments\cellpose.yml   # Robust detection only
