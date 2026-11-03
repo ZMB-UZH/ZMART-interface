@@ -412,9 +412,9 @@ def test_the_image_size_and_the_pixel_size_make_the_frame(monkeypatch):
     large each is -- and they change with the settings, which is the whole point.
     Only x is read; a plan is laid in square frames."""
     assert _frame(
-        {"pixel_size_um": [0.33, 0.33], "image_size_px": [2048, 2048]}, monkeypatch) == 676
+        {"pixel_size_um": [0.33, 0.33], "image_size_px": [2048, 2048]}, monkeypatch) == pytest.approx(675.84)
     assert _frame(
-        {"pixel_size_um": [0.33, 0.33], "image_size_px": [512, 512]}, monkeypatch) == 169
+        {"pixel_size_um": [0.33, 0.33], "image_size_px": [512, 512]}, monkeypatch) == pytest.approx(168.96)
 
 
 def test_an_instrument_that_says_no_image_size_is_refused_rather_than_guessed(monkeypatch):

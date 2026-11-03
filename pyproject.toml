@@ -63,7 +63,7 @@ dependencies = [
 [project.optional-dependencies]
 # The drivers for real microscopes. Install the extra of the driver too, for
 # example the Leica's: pip install "zmart-drivers[leica] @ git+...".
-drivers = ["zmart-drivers @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b10"]
+drivers = ["zmart-drivers @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b11"]
 # What working on the interface needs beyond running it: pytest, and ruff,
 # which checks the Python as the automatic checks do (pinned, so a new ruff
 # release cannot fail a change nobody made). The page's own tools come from

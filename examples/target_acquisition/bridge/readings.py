@@ -67,7 +67,7 @@ def required_pixel_size_um(observed: dict) -> float:
     return measured
 
 
-def frame_across(observed: dict) -> int:
+def frame_across(observed: dict) -> float:
     """How wide one frame is on the sample, in micrometres: its pixels across times their size.
 
     Both are the controller's own keys for the current settings,
@@ -84,7 +84,9 @@ def frame_across(observed: dict) -> int:
             "the microscope did not report how many pixels its image has, so a scan cannot "
             f"be planned; {CHECK_THE_JOB}"
         )
-    return round(across * required_pixel_size_um(observed))
+    # Not rounded: tiles laid a fraction of a micrometre short of the frame
+    # add up to strips left unimaged across a scan.
+    return across * required_pixel_size_um(observed)
 
 
 def reading(kind: str) -> dict:
@@ -110,7 +112,7 @@ def reading(kind: str) -> dict:
     # collapsed configuration is read to answer "how much ground does one
     # press get me". What else the driver reports (its objective, say) is the
     # driver's own and stands in the detail below, as the driver said it.
-    summary = f"{state.context.get('name', 'instrument')} · {frame_um} × {frame_um} µm"
+    summary = f"{state.context.get('name', 'instrument')} · {frame_um:.0f} × {frame_um:.0f} µm"
     reading = {
         "summary": summary, "detail": rows, "frameUm": frame_um,
         # The reapplicable half, kept with the reading: a recording is the

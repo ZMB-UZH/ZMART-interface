@@ -42,6 +42,13 @@ def test_a_reading_with_both_sizes_reported_is_taken(monkeypatch):
     assert said["summary"].endswith("512 × 512 µm")
 
 
+def test_the_frame_is_not_rounded_to_whole_micrometres(monkeypatch):
+    # Tiles laid at a rounded frame drift apart from the images they hold.
+    said = read({"pixel_size_um": [0.6215, 0.6215], "image_size_px": [1024, 1024]}, monkeypatch)
+    assert said["frameUm"] == pytest.approx(636.416)
+    assert said["summary"].endswith("636 × 636 µm")
+
+
 @pytest.mark.parametrize("pixel", [None, [], [None, None], [0, 0]])
 def test_a_reading_without_a_pixel_size_is_refused(monkeypatch, pixel):
     with pytest.raises(RuntimeError, match="did not report its pixel size"):
