@@ -21,6 +21,7 @@ import threading
 from pathlib import Path
 
 from ..microscope.instrument import Instrument
+from ..storage.positions import DEFAULT_FORMAT
 
 #: The one lock that guards the instrument. Every route that touches the
 #: session takes it first, so two requests can never move the stage at once.
@@ -44,6 +45,10 @@ last_xyz: dict | None = None
 #: makes one run a run -- without it every scan piles into the same folder and
 #: the second is indistinguishable from the first.
 run: Path | None = None
+
+#: How this session saves its positions: ``"ome-tiff"`` or ``"ome-zarr"``,
+#: chosen on the Connect step (see :mod:`target_acquisition.storage.positions`).
+image_format: str = DEFAULT_FORMAT
 
 #: Where runs go, when this bridge was started with somewhere to put them.
 #: A driver that discovers its own (the Leica finds the root beside LAS X)

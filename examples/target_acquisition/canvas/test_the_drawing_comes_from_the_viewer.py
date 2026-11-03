@@ -75,7 +75,7 @@ def test_the_installed_viewer_is_the_pinned_one():
     differ (``tools/the-installed-viewer.mjs``); this says so before the build is run.
     """
     pinned = re.search(
-        r'"zmart-viewer @ git\+https://github\.com/ZMB-UZH/ZMART-viewer@v([^"]+)"',
+        r'"zmart-viewer @ git\+https://github\.com/(?:ZMB-UZH|thomdehoog)/ZMART-viewer@v([^"]+)"',
         (CHECKOUT / "pyproject.toml").read_text(encoding="utf-8"),
     )
     assert pinned, "pyproject.toml does not pin zmart-viewer to a release tag"

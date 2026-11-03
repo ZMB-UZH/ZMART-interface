@@ -23,7 +23,7 @@ import { join } from "node:path";
 /** The viewer release `pyproject.toml` pins, as `0.5.0rc10`. */
 function thePinnedViewer() {
   const project = readFileSync(join(import.meta.dirname, "..", "pyproject.toml"), "utf8");
-  const pinned = project.match(/"zmart-viewer @ git\+https:\/\/github\.com\/ZMB-UZH\/ZMART-viewer@v([^"]+)"/);
+  const pinned = project.match(/"zmart-viewer @ git\+https:\/\/github\.com\/(?:ZMB-UZH|thomdehoog)\/ZMART-viewer@v([^"]+)"/);
   if (!pinned) throw new Error("pyproject.toml does not pin zmart-viewer to a release tag");
   return pinned[1];
 }

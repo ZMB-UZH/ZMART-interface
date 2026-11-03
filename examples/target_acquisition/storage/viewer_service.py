@@ -55,7 +55,7 @@ from urllib.parse import unquote
 VIEWER_REQUEST_TIMEOUT_S = 30.0
 _metadata_reads = threading.Lock()
 
-#: The viewer versions this interface is tested with: 0.5.0rc10 and later,
+#: The viewer versions this interface is tested with: 0.5.0rc11 and later,
 #: up to but not including 0.6. From 0.5.0rc2 the viewer itself names the
 #: operator's page as allowed to read it, and refuses pages from elsewhere;
 #: from 0.5.0rc3 its engine no longer takes the viewer window's own settings,
@@ -67,14 +67,16 @@ _metadata_reads = threading.Lock()
 #: ships the drawing primitives this page draws through; from 0.5.0rc8
 #: a store fed in later keeps its own depth; and from 0.5.0rc9 a piece
 #: asked for right after a publication is never answered from the one
-#: before; and from 0.5.0rc10 a projection of flat tiles at different
-#: heights (a focus map's) shows them all. An older viewer would leave the page unable to read it, to be
-#: built, or to show a driver's projections, would draw the picture half
-#: a voxel from where it was taken, or would leave pieces of an earlier
-#: publication on the canvas for good, or would show one flat tile of
-#: many, so it is refused, as are the 0.5.0
-#: development builds that came before its public names settled.
-VIEWER_VERSIONS = ">=0.5.0rc10,<0.6"
+#: before; from 0.5.0rc10 a projection of flat tiles at different
+#: heights (a focus map's) shows them all; and from 0.5.0rc11 it composes
+#: positions saved as OME-TIFF, placed by the same OME-Zarr rules. An older
+#: viewer would leave the page unable to read it, to be built, or to show a
+#: driver's projections, would draw the picture half a voxel from where it
+#: was taken, would leave pieces of an earlier publication on the canvas for
+#: good, would show one flat tile of many, or could not show a run saved as
+#: OME-TIFF, so it is refused, as are the 0.5.0 development builds that came
+#: before its public names settled.
+VIEWER_VERSIONS = ">=0.5.0rc11,<0.6"
 
 #: The service's whole state: one viewer per bridge process, like the run.
 _viewer: dict = {
@@ -368,7 +370,7 @@ def _publish_once(wake: threading.Event, pending: set[str]) -> bool:
         try:
             completed = {
                 name: revision for (source_kind, name), revision in versions.items()
-                if source_kind == kind and (Path(folder) / name).is_dir()
+                if source_kind == kind and (Path(folder) / name).exists()
             }
             if not completed and folder not in opened:
                 continue
@@ -492,7 +494,7 @@ def _still_on_disk(address: str) -> bool:
     if not found or not folders:
         return True
     name = unquote(found.group(1))
-    return any((folder / name).is_dir() for folder in folders)
+    return any((folder / name).exists() for folder in folders)
 
 
 def _the_heading_of(row: dict) -> str:
@@ -506,7 +508,7 @@ def _the_heading_of(row: dict) -> str:
     group = str(row.get("group") or "picture")
     group = group.rsplit(" · ", 1)[-1]
     group = re.sub(r" \(\d+\)$", "", group)
-    for suffix in (".zmartview.zarr", ".ome.zarr", ".zarr"):
+    for suffix in (".zmartview.zarr", ".ome.zarr", ".zarr", ".ome.tif"):
         group = group.removesuffix(suffix)
     return group
 

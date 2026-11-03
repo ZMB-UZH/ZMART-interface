@@ -11,8 +11,8 @@ from ..analysis import detection
 from ..analysis.workflows import step_module
 from ..bridge import pictures, state
 from ..storage import jpeg_tiles
-from ..storage.test_zarr_positions import a_z_stack
-from ..storage.zarr_positions import position_store_from_record
+from ..storage.positions import position_from_record
+from ..storage.test_positions import a_z_stack
 
 read_images = step_module("object_analysis", "read_images")
 segment_watershed = step_module("object_analysis", "segment_watershed")
@@ -23,7 +23,7 @@ def test_preview_uses_the_same_canonical_mip_as_detection(tmp_path, monkeypatch)
     record["planes"] = [
         {**p, "c": c, "t": t} for p in record["planes"] for c in (2, 7) for t in (3, 4)
     ]
-    record["zarr"] = str(position_store_from_record(record, tmp_path / "positions"))
+    record["position_path"] = str(position_from_record(record, tmp_path / "positions", format="ome-zarr"))
     monkeypatch.setattr(state, "records", {"overview": [record]})
     monkeypatch.setattr(state, "displayed_pictures", {})
     monkeypatch.setattr(jpeg_tiles, "_as_jpeg", lambda pixels, quality: pixels)
@@ -32,7 +32,7 @@ def test_preview_uses_the_same_canonical_mip_as_detection(tmp_path, monkeypatch)
         record["position_label"],
         [{"c": 0, "visible": True, "window": [0, 40000], "color": "#ff0000"}],
     )
-    expected = read_images.load_plane(record["zarr"], t=0, c=0, z="max")[0]
+    expected = read_images.load_plane(record["position_path"], t=0, c=0, z="max")[0]
     np.testing.assert_allclose(shown[..., 0], expected.astype("float32") / 40000 * 255)
     assert expected.max() > 0
     assert np.count_nonzero(shown[..., 1:]) == 0
@@ -41,8 +41,8 @@ def test_preview_uses_the_same_canonical_mip_as_detection(tmp_path, monkeypatch)
 def test_extra_channel_features_read_max_and_checkpoint_identifies_it(tmp_path):
     record = a_z_stack(tmp_path, heights=(0, 1, 2), acquisition_type="overview")
     record["planes"] += [{**p, "c": 1} for p in record["planes"]]
-    record["zarr"] = str(position_store_from_record(record, tmp_path / "positions"))
-    group = zarr.open_group(record["zarr"], mode="r+")
+    record["position_path"] = str(position_from_record(record, tmp_path / "positions", format="ome-zarr"))
+    group = zarr.open_group(record["position_path"], mode="r+")
     array = group["0"]
     array[:] = 0
     array[0, 0, 0, 15:30, 15:30] = 10000
@@ -51,7 +51,7 @@ def test_extra_channel_features_read_max_and_checkpoint_identifies_it(tmp_path):
     array[0, 1, 2] = 900
     inp = {
         **detection.what_was_captured(record, field=0, settings={}),
-        "image_path": record["zarr"],
+        "image_path": record["position_path"],
         "channels": [0],
         "extra_channel_indices": [1],
         "z_selection": "max",
@@ -79,7 +79,7 @@ def test_extra_channel_features_read_max_and_checkpoint_identifies_it(tmp_path):
 
 def test_target_area_and_radius_use_captured_calibration(tmp_path):
     record = a_z_stack(tmp_path, heights=(0,), acquisition_type="overview")
-    record["zarr"] = str(position_store_from_record(record, tmp_path / "positions"))
+    record["position_path"] = str(position_from_record(record, tmp_path / "positions", format="ome-zarr"))
     table = {
         "object_id": ["one"],
         "area": [100],

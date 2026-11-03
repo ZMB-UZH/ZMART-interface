@@ -1,11 +1,12 @@
 """What a run leaves behind: where it is written, what the driver said it
-wrote, and the OME-Zarr image every capture is kept as.
+wrote, and the position every capture is kept as.
 
 ``output.py`` names the run folder and files a capture's record;
-``zarr_positions.py`` converts each capture, the moment it lands, into one
-OME-Zarr image of its own -- one position, its channels, its planes, and a
-few progressively smaller copies for viewing it zoomed out -- declared by
-``images.py``; ``jpeg_tiles.py`` makes the small copies the page's gallery
+``positions.py`` converts each capture, the moment it lands, into one
+position of its own, in the format chosen on the Connect step (an OME-TIFF
+file or an OME-Zarr image) -- its channels, its planes, and a few
+progressively smaller copies for viewing it zoomed out -- described the way
+``images.py`` declares an OME-Zarr image; ``jpeg_tiles.py`` makes the small copies the page's gallery
 and previews show; ``viewer_service.py`` hands the run's images to ZMART
 Viewer, which draws the canvas.
 

@@ -119,8 +119,16 @@ export interface Session {
   config: string;
   /** The folder the run is made under: the last one used, until the operator names another. */
   outputRoot: string;
+  /** How the run's images are saved: one of {@link IMAGE_FORMATS}. */
+  format: string;
   instrument?: string;
 }
+
+/** The formats a run can be saved in, as the Connect step offers them, the default first. */
+export const IMAGE_FORMATS = [
+  { key: "ome-tiff", label: "OME-TIFF", detail: "opens in Fiji, napari, QuPath, Imaris" },
+  { key: "ome-zarr", label: "OME-Zarr", detail: "for very large data" },
+];
 
 export const DEFAULT_SESSION: Session = {
   /* Chosen once the instruments are listed: the interface's mock when it is
@@ -138,6 +146,10 @@ export const DEFAULT_SESSION: Session = {
   config: "",
   /* The bridge's, once the instruments are listed: where the last run went. */
   outputRoot: "",
+  /* How the run's images are saved: one OME-TIFF file per position, which
+     opens with a drag and drop in Fiji, napari, QuPath or Imaris, or one
+     OME-Zarr image per position, for very large data. OME-TIFF first. */
+  format: "ome-tiff",
 };
 
 /** Put the chosen driver's saved host, client and config in the session, for the operator to change.

@@ -18,6 +18,7 @@ import time
 from ..microscope.focus_run import as_state
 from ..storage import output
 from ..storage.output import position_label, prepare_acquisition
+from ..storage.positions import name_of_a_position
 from . import ledgers, pictures, stage, state
 
 
@@ -107,7 +108,7 @@ def scan_worker(
             # Outside the instrument's turn: the conversion reads files the
             # capture already wrote, and holding the lock for it would keep
             # the stage waiting on disk work.
-            pictures.keep_position_as_zarr(record, acquisition_type)
+            pictures.keep_the_position(record, acquisition_type)
             records = state.records.setdefault(acquisition_type, [])
             replaced = next(
                 (at for at, old in enumerate(records)
@@ -170,7 +171,10 @@ def start_one_scan(asked: dict) -> dict:
     state.records[acquisition_type] = []
     pictures.replace_the_acquisition(
         acquisition_type,
-        keeping={f"{acquisition_type}_{label_for(i, p)}.ome.zarr" for i, p in enumerate(positions)},
+        keeping={
+            name_of_a_position(acquisition_type, label_for(i, p), state.image_format)
+            for i, p in enumerate(positions)
+        },
     )
     for key in [key for key in state.displayed_pictures if key[0] == acquisition_type]:
         del state.displayed_pictures[key]

@@ -1,8 +1,9 @@
-"""What a capture becomes once it has landed: its OME-Zarr position, and the pictures the page fetches.
+"""What a capture becomes once it has landed: its position, and the pictures the page fetches.
 
-Every capture is converted the moment it lands into one OME-Zarr position
-(``keep_position_as_zarr``), which the viewer beside the bridge links into
-one live picture. The small JPEG copies the page's panels show and the
+Every capture becomes one position the moment it lands
+(``keep_the_position``), in the format the run is saved in -- OME-TIFF or
+OME-Zarr -- and the viewer beside the bridge links the positions into one
+live picture. The small JPEG copies the page's panels show and the
 copies drawn with the canvas's own display settings are made from the
 records here, on request, under the run's ``view`` folders, and handed out
 by :func:`a_picture` at ``/api/target_acquisition/view/<kind>/<name>``. A
@@ -23,65 +24,80 @@ from pathlib import Path
 from zmart_interface.framework.bridge.api import Bytes, Refusal
 
 from ..microscope.focus_run import FOCUSSING
-from ..storage import output, viewer_service
-from ..storage.zarr_positions import frame_um_of, position_store_from_record
+from ..storage import output, positions, viewer_service
 from . import ledgers, state
 
 
-def keep_position_as_zarr(record: dict, acquisition_type: str) -> None:
-    """The capture's canonical form: one OME-Zarr 0.5 position in
-    ``positions/<acquisition type>/``, converted from the vendor's own files
-    the moment they land — see :mod:`target_acquisition.storage.zarr_positions`.
+def keep_the_position(record: dict, acquisition_type: str) -> None:
+    """The capture's own form: one position in ``positions/<acquisition type>/``,
+    made from the vendor's own files the moment they land, in the format the
+    run is saved in -- see :mod:`target_acquisition.storage.positions`.
     The folder is named by the type because the viewer names the one picture
     it links a folder into after the folder itself.
+
+    An OME-TIFF position also gets its projection over z as an OME-TIFF, in
+    ``<acquisition type>/projections`` beside the data, unless the driver made
+    one: a person opens it to see the stack at a glance, and the viewer shows
+    it rather than making its own. (For OME-Zarr the viewer makes them.)
 
     A conversion that fails is filed on the record rather than felling the
     scan: the vendor's files are on disk and the conversion can be run again,
     while a stage drive cut short cannot.
     """
+    one_plane = len({plane.get("z") for plane in record.get("planes") or []}) == 1
     try:
-        store = the_drivers_store(record)
+        given = the_drivers_position(record)
         projections_in = None
-        if store is not None:
-            # The driver saved the capture as one OME-Zarr image: that is the
-            # capture's one copy, used as it is. So is its projection: the
-            # driver's, under the store's name in ``projections`` beside the
-            # folder the store is in, or a flat capture itself.
-            folder = store.parent
-            record["zarr"] = str(store)
-            if (folder.parent / "projections" / store.name).is_dir():
+        if given is not None:
+            # The driver saved the capture as one position: that is the
+            # capture's one copy, used as it is, in the format it came in. So
+            # is its projection: the driver's, under the position's name in
+            # ``projections`` beside the folder it is in, or a flat capture
+            # itself.
+            folder = given.parent
+            record["position_path"] = str(given)
+            if (folder.parent / "projections" / given.name).exists():
                 projections_in = folder.parent / "projections"
-            elif len({plane.get("z") for plane in record.get("planes") or []}) == 1:
+            elif one_plane:
                 projections_in = folder
         else:
             folder = state.the_run() / "positions" / acquisition_type
-            record["zarr"] = str(position_store_from_record(record, folder))
+            record["position_path"] = str(
+                positions.position_from_record(record, folder, format=state.image_format)
+            )
+        if projections_in is None and positions.format_of(record["position_path"]) == "ome-tiff":
+            if one_plane:
+                projections_in = folder
+            else:
+                projections_in = state.the_run() / acquisition_type / "projections"
+                positions.write_a_projection(record["position_path"], projections_in)
         # The frame's true width on the sample. A recording made before the
         # run says what was promised; the instrument may have stood on
         # another job by the time it captured, and the page draws, crops and
         # opens the ground over what actually landed.
-        record["frame_um"] = frame_um_of(record["zarr"])
+        record["frame_um"] = positions.frame_um_of(record["position_path"])
     except Exception as why:  # noqa: BLE001 -- filed, not fatal
-        record["zarr_error"] = str(why)
+        record["position_error"] = str(why)
         return
     # The viewer beside this bridge links the folder into one live picture;
     # the first position of a kind opens it, the rest ring the doorbell.
     viewer_service.a_position_landed(
-        acquisition_type, folder, store=record["zarr"], projections_in=projections_in,
+        acquisition_type, folder, store=record["position_path"], projections_in=projections_in,
     )
 
 
-def the_drivers_store(record: dict) -> Path | None:
-    """The OME-Zarr store the driver saved the capture as, or None for files a plane.
+def the_drivers_position(record: dict) -> Path | None:
+    """The position the driver saved the capture as, or None when it saved loose files.
 
-    Every plane then names the same store (its ``c``, ``z``, ``t`` index into
-    it), as the controller's acquire contract allows.
+    Every plane then names the same position (its ``c``, ``z``, ``t`` index
+    into it), as the controller's acquire contract allows, and that position
+    is an OME-Zarr image or an OME-TIFF carrying ZMART's note.
     """
     paths = {str(plane.get("path")) for plane in record.get("planes") or []}
     if len(paths) != 1:
         return None
-    store = Path(next(iter(paths)))
-    return store if store.name.endswith(".ome.zarr") and store.is_dir() else None
+    position = Path(next(iter(paths)))
+    return position if positions.is_a_position(position) else None
 
 
 #: Where a scan's display copies go: beside ``data``, under the acquisition
@@ -136,7 +152,7 @@ def a_picture_as_displayed(acquisition_type: str, label: str, display: list) -> 
         # The whole frame: the operator judges a diameter against this
         # picture, and a thumbnail blown up to the panel's width is blocks.
         picture = jpeg_tiles.picture_as_displayed(
-            planes, display, budget_px=1024 * 1024, store=record.get("zarr"))
+            planes, display, budget_px=1024 * 1024, store=record.get("position_path"))
     # Put back last, so the order of the dictionary is the order of use.
     kept[key] = picture
     while len(kept) > DISPLAYED_KEPT:
@@ -280,15 +296,21 @@ def replace_the_acquisition(acquisition_type: str, keeping: set[str] = frozenset
     run = state.the_run()
     # Checked before the first deletion: this removes folders by a name the
     # page chose, and an absolute path in its place replaced the run folder.
-    positions = run / "positions" / output.checked_name(acquisition_type, field="acquisition_type")
+    kind = output.checked_name(acquisition_type, field="acquisition_type")
+    folder = run / "positions" / kind
     stale = [
-        child for child in (positions.iterdir() if positions.is_dir() else [])
-        if child.is_dir() and child.name.endswith(".ome.zarr") and child.name not in keeping
+        child for child in (folder.iterdir() if folder.is_dir() else [])
+        if positions.is_a_position_name(child.name) and child.name not in keeping
     ]
     if stale:
         for child in stale:
-            shutil.rmtree(child, ignore_errors=True)
-        viewer_service.stores_were_retired(acquisition_type, positions)
+            # With it goes the projection the interface made of it, if any.
+            for one in (child, run / kind / "projections" / child.name):
+                if one.is_dir():
+                    shutil.rmtree(one, ignore_errors=True)
+                else:
+                    one.unlink(missing_ok=True)
+        viewer_service.stores_were_retired(acquisition_type, folder)
     # The stores a driver saved are the captures themselves, in ``data``:
     # never deleted, only no longer shown.
     viewer_service.forget_stores(acquisition_type, keeping=set(keeping))
@@ -296,7 +318,7 @@ def replace_the_acquisition(acquisition_type: str, keeping: set[str] = frozenset
     # folder beside the positions; swept only while nothing is writing there.
     leftovers = [view_of(acquisition_type)]
     if not ledgers.a_run_has_the_stage():
-        leftovers.append(positions.parent / ".writing")
+        leftovers.append(folder.parent / ".writing")
     for leftover in leftovers:
         shutil.rmtree(leftover, ignore_errors=True)
     with state.view_lock:

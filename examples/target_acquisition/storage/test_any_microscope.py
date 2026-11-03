@@ -37,7 +37,7 @@ from .output import (  # noqa: E402
     prepare_acquisition,
     prepare_experiment,
 )
-from .zarr_positions import position_store_from_record  # noqa: E402
+from .positions import position_from_record  # noqa: E402
 
 
 class Elsewhere:
@@ -149,7 +149,7 @@ def run(tmp_path):
 
 def test_a_capture_from_another_microscope_is_kept_as_a_position(capture, run):
     record = move_record_images(capture("A1"), prepare_acquisition(run, "overview"))
-    store = position_store_from_record(record, run / "positions" / "overview")
+    store = position_from_record(record, run / "positions" / "overview", format="ome-zarr")
 
     attributes = json.loads((store / "zarr.json").read_text())["attributes"]
     multiscale = attributes["ome"]["multiscales"][0]
@@ -160,7 +160,7 @@ def test_a_capture_from_another_microscope_is_kept_as_a_position(capture, run):
 def test_a_stack_from_another_microscope_keeps_its_depths(capture, run):
     record = capture("B1", z_planes=3, z_step_um=2.0)
     record = move_record_images(record, prepare_acquisition(run, "overview"))
-    store = position_store_from_record(record, run / "positions" / "overview")
+    store = position_from_record(record, run / "positions" / "overview", format="ome-zarr")
 
     import zarr
 

@@ -80,15 +80,15 @@ def announced(monkeypatch):
     return told
 
 
-def test_the_drivers_store_is_used_and_no_copy_is_made(run, announced):
+def test_the_drivers_position_is_used_and_no_copy_is_made(run, announced):
     pixels = np.arange(2 * 64 * 64, dtype=np.uint16).reshape(1, 2, 1, 64, 64)
     store = a_driver_store(run / "overview" / "data", "overview_000001_A1.ome.zarr", pixels)
     record = a_record_from(store, channels=2)
 
-    pictures.keep_position_as_zarr(record, "overview")
+    pictures.keep_the_position(record, "overview")
 
-    assert "zarr_error" not in record
-    assert record["zarr"] == str(store)
+    assert "position_error" not in record
+    assert record["position_path"] == str(store)
     assert record["frame_um"] == pytest.approx(64 * 2.0)
     assert not (run / "positions").exists(), "no second copy of the capture"
     assert announced == [("overview", store.parent, store)]
@@ -97,13 +97,13 @@ def test_the_drivers_store_is_used_and_no_copy_is_made(run, announced):
 def test_a_tiff_capture_is_still_converted(run, announced, monkeypatch):
     converted = []
     monkeypatch.setattr(
-        pictures, "position_store_from_record",
-        lambda record, folder: converted.append(folder) or Path(folder) / "x.ome.zarr",
+        pictures.positions, "position_from_record",
+        lambda record, folder, format: converted.append(folder) or Path(folder) / "x.ome.zarr",
     )
-    monkeypatch.setattr(pictures, "frame_um_of", lambda store: 1.0)
+    monkeypatch.setattr(pictures.positions, "frame_um_of", lambda store: 1.0)
     record = {"position_label": "A1", "planes": [{"path": str(run / "a.ome.tif"), "c": 0, "z": 0, "t": 0}]}
 
-    pictures.keep_position_as_zarr(record, "overview")
+    pictures.keep_the_position(record, "overview")
 
     assert converted == [run / "positions" / "overview"]
 
@@ -122,7 +122,7 @@ def test_the_small_picture_is_drawn_from_the_store(tmp_path):
     assert tile["x0"] + tile["w"] / 2 == pytest.approx(100.0)
 
 
-def test_a_rerun_stops_showing_the_drivers_stores_but_never_deletes_them(run, monkeypatch):
+def test_a_rerun_stops_showing_the_drivers_positions_but_never_deletes_them(run, monkeypatch):
     store = a_driver_store(
         run / "overview" / "data", "overview_000001_A1.ome.zarr", np.zeros((1, 1, 1, 8, 8), np.uint16)
     )
@@ -242,8 +242,8 @@ def test_the_viewer_is_told_where_the_drivers_projections_are(run, monkeypatch):
     record["planes"] = [{**record["planes"][0], "z": z} for z in range(3)]
     flat = a_driver_store(run / "overview" / "data", "overview_000002_A1.ome.zarr", np.zeros((1, 1, 1, 8, 8), np.uint16))
 
-    pictures.keep_position_as_zarr(record, "focussing")
-    pictures.keep_position_as_zarr(a_record_from(flat, channels=1), "overview")
+    pictures.keep_the_position(record, "focussing")
+    pictures.keep_the_position(a_record_from(flat, channels=1), "overview")
 
     assert landed == [
         ("focussing", run / "focussing" / "projections"),

@@ -51,7 +51,7 @@ def _record(tmp_path: Path, *, channels=(0, 1, 2), pixel_um: float = 4.0) -> dic
     return {
         "acquisition_type": "overview",
         "position_label": "K00_M000001_G000001_P000004_V00",
-        "files": [str(store)], "planes": planes, "zarr": str(store),
+        "files": [str(store)], "planes": planes, "position_path": str(store),
     }
 
 
@@ -62,7 +62,7 @@ def test_the_analysis_is_handed_the_store_and_nothing_it_holds(tmp_path):
         record, field=4, settings={"diameter": 30.0, "cellprob": -1.0}
     )
 
-    assert given["image_path"] == record["zarr"]
+    assert given["image_path"] == record["position_path"]
     assert given["tile_id"] == ["overview", 4, 0]
     for held in ("tile_stage_xy_um", "tile_z_um", "source_pixel_size_um", "image_to_stage"):
         assert held not in given
@@ -95,15 +95,15 @@ def test_the_pixel_size_is_the_stores_not_the_microscopes_now(tmp_path):
 
 def test_a_capture_without_a_store_cannot_be_detected_on(tmp_path):
     record = _record(tmp_path)
-    del record["zarr"]
+    del record["position_path"]
 
-    with pytest.raises(RuntimeError, match="store"):
+    with pytest.raises(RuntimeError, match="no position"):
         detection.what_was_captured(record, field=0, settings={})
 
 
 def test_a_store_that_does_not_say_its_pixel_size_is_refused(tmp_path):
     record = _record(tmp_path)
-    description = Path(record["zarr"]) / "zarr.json"
+    description = Path(record["position_path"]) / "zarr.json"
     said = json.loads(description.read_text())
     said["attributes"]["ome"]["multiscales"][0]["datasets"][0]["coordinateTransformations"] = []
     description.write_text(json.dumps(said))
@@ -161,7 +161,7 @@ def test_the_results_are_filed_beside_the_captures_data_when_its_store_is_elsewh
     ``positions``; the results still go beside the ``data`` its planes were saved in,
     where the page reads the masks from."""
     record = _record(tmp_path)
-    record["zarr"] = str(a_store(tmp_path / "run" / "positions" / "overview" / "A1.ome.zarr"))
+    record["position_path"] = str(a_store(tmp_path / "run" / "positions" / "overview" / "A1.ome.zarr"))
     for plane in record["planes"]:
         plane["path"] = str(tmp_path / "run" / "overview" / "data" / "A1_C00_Z00000.ome.tiff")
 

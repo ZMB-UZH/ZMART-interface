@@ -125,7 +125,7 @@ test("Connect opens an empty middle viewer; focusing and overview fill it above 
   const preview = await bridge!.image([firstField]);
   expect(preview).toMatchObject({ running: false, error: null, stopped: false, done: 1, of: 1 });
   expect(preview.records).toHaveLength(1);
-  expect(preview.records.filter((record: { zarr_error?: unknown }) => record.zarr_error)).toEqual([]);
+  expect(preview.records.filter((record: { position_error?: unknown }) => record.position_error)).toEqual([]);
   await page.waitForFunction(() => window.__thePicture!.layersForMeasurement().some(
     row => (row.name as string).startsWith("overview") && (row.dims as unknown[] | null)?.length,
   ));

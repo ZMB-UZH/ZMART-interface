@@ -56,6 +56,15 @@ describe("the live connect", () => {
     expect(calls.filter(([route]) => route === "/api/target_acquisition/info")).toHaveLength(3);
   });
 
+  it("sends how the run's images are saved with the connection", async () => {
+    const { calls } = bridgeAnswering([{ driver: "mock" }]);
+    const done = backend.connect({ instrument: "mock", password: "pw", format: "ome-zarr" });
+    await vi.runAllTimersAsync();
+    await done;
+    const [, body] = calls.find(([route]) => route === "/api/target_acquisition/connect")!;
+    expect(body).toMatchObject({ instrument: "mock", password: "pw", format: "ome-zarr" });
+  });
+
   it("rejects naming the check that failed, after showing it", async () => {
     bridgeAnswering([
       { driver: "mock", storage: PENDING },

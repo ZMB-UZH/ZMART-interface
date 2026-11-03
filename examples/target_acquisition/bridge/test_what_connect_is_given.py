@@ -132,6 +132,9 @@ def test_what_the_operator_typed_goes_over_the_saved_connection(monkeypatch, han
     assert handed == [{
         **NAMES_THEM, "host": "10.0.0.9", "client": "zmart", "password": "hunter2",
         "config": "C:/scope/setup.xml", "output_root": "D:/chosen",
+        # How the run is saved goes along, so a driver that saves positions
+        # itself saves them the same way.
+        "format": "ome-tiff",
     }]
 
 
@@ -144,7 +147,7 @@ def test_a_word_the_driver_does_not_name_is_handed_on_for_it_to_leave(monkeypatc
         })
     assert handed == [{
         "mock_timing": "instant", "host": "10.0.0.9", "client": "zmart", "password": "hunter2",
-        "config": "x.xml", "output_root": "D:/chosen",
+        "config": "x.xml", "output_root": "D:/chosen", "format": "ome-tiff",
     }]
 
 
@@ -187,3 +190,11 @@ def test_without_a_folder_from_either_the_operator_or_the_start_connect_says_whe
     monkeypatch.setattr(state, "output_root", None)
     with pytest.raises(RuntimeError, match="Output folder"):
         connecting.connect({"instrument": mock_microscope.NAME})
+
+
+def test_the_format_chosen_on_the_connect_step_goes_to_the_driver(monkeypatch, handed):
+    """A run saved as OME-Zarr says so to the driver, which saves the same way."""
+    monkeypatch.setitem(connecting.offered, "names-none", (object(), {}))
+    with pytest.raises(Opened):
+        connecting.connect({"instrument": "names-none", "output_root": "D:/chosen", "format": "ome-zarr"})
+    assert handed[-1]["format"] == "ome-zarr"

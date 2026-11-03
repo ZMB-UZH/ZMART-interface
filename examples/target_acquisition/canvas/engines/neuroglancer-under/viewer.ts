@@ -993,7 +993,7 @@ function theDepthOnScreen(viewer: Viewer): number {
  * The centre of the lowest plane on the shared depth axis, in the engine's
  * own coordinates, or null while no stack has declared a depth.
  *
- * Stores are written in absolute stage z (`zarr_positions.py`), so the
+ * Positions are written in absolute stage z (`storage/positions.py`), so the
  * shared axis's lower bound is the lowest plane any stack holds; flat
  * aggregates keep their depth local and do not pull the bound about. Where
  * integer coordinates are voxel centres on this axis, the first plane's centre

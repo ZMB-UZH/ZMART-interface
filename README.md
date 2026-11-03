@@ -28,7 +28,7 @@ The ZMART interface provides a unified interactive framework and playground that
 <br>
 
 ## Status
-This is a release candidate, 0.2.0rc2. We are currently in the process of testing it on the Leica Stellaris.
+This is a release candidate, 0.2.0rc3. We are currently in the process of testing it on the Leica Stellaris.
 
 ## A framework, and the workflows you run in it
 The interface is a framework: installing it gives you the operator window and
@@ -41,6 +41,24 @@ This repository keeps one complete example, *Target acquisition*, in
 [`examples/`](examples). The interface's own tests run on it, and it is the
 place to start when you write a workflow. It is not installed with the
 interface.
+
+## How a run's images are saved
+On the Connect step you choose, once for the whole run, how its images are
+saved. Each capture becomes one *position* of the run, kept beside the
+microscope's own files:
+
+- **OME-TIFF** (the default): one `.ome.tif` file per position, holding every
+  channel and plane, with smaller copies of the picture inside it. It opens
+  with a drag and drop in Fiji, napari, QuPath or Imaris. A stack's maximum
+  projection is saved beside it as an OME-TIFF too.
+- **OME-Zarr**: one `.ome.zarr` image per position, the better choice for very
+  large data.
+
+Both hold the same pixels, and the viewer, the analysis and every step of the
+interface work the same way with either. Where a picture lies on the stage
+follows the OME-Zarr rules in both: an OME-TIFF carries the same description
+an OME-Zarr image would, in a small ZMART note inside the file that other
+programs skip.
 
 ## Try it yourself
 Install it and test it:

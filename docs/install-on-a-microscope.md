@@ -79,7 +79,7 @@ says how a folder of workflows is laid out and how its page is built.
 
 ```powershell
 cd <approved>
-git clone -b v0.6.0rc9 https://github.com/ZMB-UZH/ZMART-analysis
+git clone -b v0.6.0rc10 https://github.com/ZMB-UZH/ZMART-analysis
 conda env create -f ZMART-analysis\examples\focus\environments\main.yml
 conda env create -f ZMART-analysis\examples\object_analysis\environments\classical.yml
 conda env create -f ZMART-analysis\examples\object_analysis\environments\cellpose.yml   # Robust detection only
@@ -96,7 +96,7 @@ the first press of a session pays the start-up of those workers once.
 
 ### 5. The driver
 
-Install the driver's extra (for the Leica: `pip install "zmart-drivers[leica] @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b9"`),
+Install the driver's extra (for the Leica: `pip install "zmart-drivers[leica] @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b10"`),
 and do the driver's own setup for this microscope -- its limits, origin and, for the Leica,
 the image orientation and objective calibration. Each driver's README says how; the Leica
 driver has a setup wizard for it: `python -m zmart_drivers.leica.stellaris.navigator_expert.driver_setup.wizard`. The driver

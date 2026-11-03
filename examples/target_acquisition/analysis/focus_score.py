@@ -39,11 +39,11 @@ def what_was_captured(record: dict) -> dict:
     Nothing is assembled and nothing is copied: the planes are read where the
     acquisition left them.
     """
-    if record.get("zarr"):
-        # Canonical TCZYX stores pack T/C from zero and Z in physical order.
-        # The analysis reader obtains plane heights from that same store.
-        return {"image_path": record["zarr"]}
-    if record.get("zarr_error"):
+    if record.get("position_path"):
+        # A position packs T/C from zero and Z in physical order, in either
+        # format. The analysis reader obtains plane heights from it too.
+        return {"image_path": record["position_path"]}
+    if record.get("position_error"):
         raise RuntimeError("Focus requires its canonical position; refusing different vendor pixels")
     every = record.get("planes") or []
     if not every:

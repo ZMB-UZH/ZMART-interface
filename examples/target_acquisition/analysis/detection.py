@@ -26,44 +26,40 @@ PIPELINES = {"robust": "object_analysis_cellpose", "fast": "object_analysis_wate
 SEGMENTATION_STEPS = ("segment_cellpose", "segment_watershed")
 
 def pixel_size_of(record: dict) -> float:
-    """The pixel size the capture was taken at, in micrometres, from its OME-Zarr store.
+    """The pixel size the capture was taken at, in micrometres, from its position.
 
-    The store is the one account of the capture. What the microscope reports
-    *now* is only right while the same settings are still in place: a
-    detection re-run after the target job was chosen took the 40x pixel size
-    for the 10x overview, and a 30 um diameter became 211 px.
+    The position, OME-TIFF or OME-Zarr, is the one account of the capture.
+    What the microscope reports *now* is only right while the same settings
+    are still in place: a detection re-run after the target job was chosen
+    took the 40x pixel size for the 10x overview, and a 30 um diameter
+    became 211 px.
     """
-    store = record.get("zarr")
-    if not store:
-        raise RuntimeError("the capture has no OME-Zarr store, so there is nothing to detect on")
-    import zarr  # noqa: PLC0415 -- kept off the import path, as the bridge does
+    position = record.get("position_path")
+    if not position:
+        raise RuntimeError("the capture has no position, so there is nothing to detect on")
+    from ..storage import positions  # noqa: PLC0415 -- kept off the import path, as the bridge does
 
-    multiscale = dict(zarr.open(str(store), mode="r").attrs)["ome"]["multiscales"][0]
-    axes = [axis.get("name") for axis in multiscale.get("axes", [])]
-    for transform in multiscale["datasets"][0].get("coordinateTransformations", []):
-        if transform.get("type") == "scale" and "x" in axes:
-            return float(transform["scale"][axes.index("x")])
-    raise RuntimeError(f"the capture's store {store} does not say its pixel size")
+    return positions.pixel_size_um_of(position)
 
 
 def what_was_captured(record: dict, *, field: int, settings: dict) -> dict:
-    """The step's input for one field: the capture's store, and how to find the objects in it.
+    """The step's input for one field: the capture's position, and how to find the objects in it.
 
-    The store says where the field lies, how large a pixel is and which
+    The position says where the field lies, how large a pixel is and which
     colours it holds; the analysis reads all of that from it, so none of it is
     handed alongside. Segmentation reads the colour the page chose -- the
     first unless it said otherwise -- and the Z maximum; the other colours
     ride along by index, each a column of features to gate on. The settings
     arrive in the page's units -- a diameter in micrometres -- and leave in
-    the detector's, pixels, at the store's pixel size.
+    the detector's, pixels, at the position's pixel size.
     """
     planes = record.get("planes") or []
     if not planes:
         raise RuntimeError("the capture reported no planes, so there is nothing to detect on")
     pixel_um = pixel_size_of(record)
-    store = Path(record["zarr"])
+    store = Path(record["position_path"])
     colours = len({int(plane.get("c", 0)) for plane in planes})
-    # Which colour is segmented, by its place in the store; a protocol written
+    # Which colour is segmented, by its place in the position; a protocol written
     # before the choice existed says nothing, and that was the first colour.
     chosen = int(settings.get("channel") or 0)
     if not 0 <= chosen < colours:
@@ -79,7 +75,7 @@ def what_was_captured(record: dict, *, field: int, settings: dict) -> dict:
         given["extra_channel_indices"] = [c for c in range(colours) if c != chosen]
     # The results are filed beside the ``data`` the capture was saved in, where the
     # page reads the masks from: found from a plane's file, since a capture saved
-    # as files is kept as a store of its own in the run's ``positions``.
+    # as files is kept as a position of its own in the run's ``positions``.
     saved = Path(planes[0]["path"])
     data = next((folder for folder in (saved, *saved.parents) if folder.name == "data"), None)
     if data is not None:
