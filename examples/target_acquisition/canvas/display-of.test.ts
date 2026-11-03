@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   displayedPictureAddress,
   displayFor,
-  displayQueryFor,
   hexColour,
 } from "./display-of.ts";
 
@@ -52,30 +51,22 @@ describe("the display the copies are asked with", () => {
     expect(displayFor(hidden, "overview")[0].visible).toBe(false);
   });
 
-  it("leaves out a row with no window, and asks for nothing when there is nothing to ask with", () => {
+  it("leaves out a row with no window", () => {
     const bare = { channels: [{ acquisition: "overview", name: "channel 0", requested: { visible: true, color: "#fff", window: null } }] };
     expect(displayFor(bare, "overview")).toEqual([]);
-    expect(displayQueryFor(bare, "overview")).toBe("");
-    expect(displayQueryFor(null, "overview")).toBe("");
   });
 
-  it("is a query the bridge can read back", () => {
-    const query = displayQueryFor(snapshot, "target");
-    expect(query.startsWith("?display=")).toBe(true);
-    expect(JSON.parse(decodeURIComponent(query.slice("?display=".length))))
+  it("asks with the canvas's settings, in a query the bridge can read back", () => {
+    const address = displayedPictureAddress("/view/target", "P0001", snapshot, "target")!;
+    expect(address.startsWith("/view/target/P0001.jpg?display=")).toBe(true);
+    expect(JSON.parse(decodeURIComponent(address.slice(address.indexOf("=") + 1))))
       .toEqual([{ c: 0, visible: true, window: [100, 900], color: "#22c55e" }]);
   });
 
-  it("asks with the display rows it has, and for the plain copy when it has none", () => {
-    expect(displayedPictureAddress("/view/overview", "P0001", snapshot, "overview"))
-      .toContain("/view/overview/P0001.jpg?display=");
-    /* No windows to ask with is a picture all the same: a dark box in the
-       gallery, waiting for settings that may never be asked for, said
-       nothing. */
-    expect(displayedPictureAddress("/view/targets", "P0002", null, "targets"))
-      .toBe("/view/targets/P0002.jpg");
-    expect(displayedPictureAddress("/view/overview", "P0001", { channels: [] }, "overview"))
-      .toBe("/view/overview/P0001.jpg");
+  it("asks for no copy until the canvas has settings to draw it with", () => {
+    /* A copy in other colours than the canvas's showed a different sample. */
+    expect(displayedPictureAddress("/view/targets", "P0002", null, "targets")).toBeNull();
+    expect(displayedPictureAddress("/view/overview", "P0001", { channels: [] }, "overview")).toBeNull();
   });
 });
 

@@ -1025,6 +1025,7 @@ export async function mountViewerPanel(near: HTMLElement | null, {
   async function windowEveryChannel() {
     if (windowingEveryChannel) return;
     windowingEveryChannel = true;
+    let windowed = false;
     try {
       for (const [index, row] of rows.entries()) {
         if (row.window || !row.source) continue;
@@ -1039,6 +1040,7 @@ export async function mountViewerPanel(near: HTMLElement | null, {
         row.window = { low, high: Math.max(high, low + 1) };
         remember(row);
         viewer.setChannel(index, { window: row.window });
+        windowed = true;
         if (chosen === index) {
           shape = row.histogram;
           refreshControls();
@@ -1047,6 +1049,9 @@ export async function mountViewerPanel(near: HTMLElement | null, {
     } finally {
       windowingEveryChannel = false;
     }
+    /* The first windows are display settings like any other: the copies
+       beside the canvas, drawn with them, are told. */
+    if (windowed) displayChangedSoon();
   }
 
   async function requestMeasurement(index: number, { auto = false, debounce = 0 } = {}): Promise<Measurement | null> {

@@ -98,29 +98,16 @@ export function displayFor(snapshot: PanelSnapshot | null | undefined, acquisiti
 }
 
 /**
- * The query to append to a copy's address so the bridge draws it with these
- * settings, or "" when there is nothing to ask with -- then the copy as the
- * bridge made it is the honest fallback.
- */
-export function displayQueryFor(snapshot: PanelSnapshot | null | undefined, acquisition: string): string {
-  const display = displayFor(snapshot, acquisition);
-  return display.length ? `?display=${encodeURIComponent(JSON.stringify(display))}` : "";
-}
-
-/**
- * One small copy, drawn with the picture's display settings when the panel
- * has them for this acquisition, and the plain copy as the bridge made it
- * otherwise. The plain copy wears a scan-wide stretch with the first three
- * channels as red, green and blue, which is not what the canvas shows; but
- * it is a picture, where refusing it left the gallery's overview a dark box
- * whenever the panel had no windows to ask with, and a box that stayed dark
- * told the operator nothing. The gallery is drawn again when the settings
- * arrive, and the copy with them takes the plain one's place.
+ * One small copy, drawn with the picture's display settings, or null while
+ * the panel has none for this acquisition: a copy in other colours than the
+ * canvas's showed the operator a different sample. The panel says when its
+ * settings arrive, and the copy is asked for then.
  */
 export function displayedPictureAddress(
   where: string | null | undefined, label: string | null | undefined,
   snapshot: PanelSnapshot | null | undefined, acquisition: string,
 ): string | null {
-  if (!where || !label) return null;
-  return `${where}/${label}.jpg${displayQueryFor(snapshot, acquisition)}`;
+  const display = displayFor(snapshot, acquisition);
+  if (!where || !label || !display.length) return null;
+  return `${where}/${label}.jpg?display=${encodeURIComponent(JSON.stringify(display))}`;
 }
