@@ -163,3 +163,21 @@ def test_a_label_shown_again_hides_its_earlier_position(experiment, monkeypatch)
         monkeypatch.setattr(pictures, "the_drivers_position", lambda record, n=name: data / n)
         pictures.keep_the_position({"position_label": "T1", "planes": [{"z": 0}]}, "targets")
     assert forgotten == ["targets_T1_a.ome.zarr"]
+
+
+def test_the_protocol_starts_on_a_clean_canvas_but_the_focus_map(monkeypatch):
+    """Step 10 starts with nothing of the earlier overview and targets on the
+    canvas; the focus map stays, as the run keeps it. Nothing leaves the disk."""
+    shown = [{"name": kind} for kind in ("focussing", "overview", "targets", "target-focussing")]
+    monkeypatch.setattr(viewer_service, "_viewer", {
+        "source_versions": {("overview", "overview_A1.ome.zarr"): 1}, "source_order": {"overview": ["overview_A1.ome.zarr"]},
+        "projections_in": {}, "folder_types": {"/run/overview/run_01/data": "overview"}, "pending": set(),
+        "sources": {one["name"]: [] for one in shown}, "acquisitions": list(shown),
+    })
+    monkeypatch.setattr(state, "shown_positions", {("overview", "A1"): "overview_A1.ome.zarr"})
+    monkeypatch.setattr(state, "displayed_pictures", {})
+
+    pictures.a_protocol_began()
+
+    assert viewer_service.kinds() == {"focussing"}
+    assert state.shown_positions == {}

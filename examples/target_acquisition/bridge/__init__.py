@@ -223,3 +223,4 @@ def routes(register) -> None:
         connecting.saved_connection(asked["instrument"]) if asked.get("instrument") else None))
     register("POST", "protocol", lambda asked, query: protocols.save_protocol(asked))
     register("POST", "protocol/save", lambda asked, query: protocols.save_protocol_to_library(asked))
+    register("POST", "protocol/begin", lambda asked, query: pictures.a_protocol_began())

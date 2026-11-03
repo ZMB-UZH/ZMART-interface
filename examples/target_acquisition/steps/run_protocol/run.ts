@@ -31,6 +31,8 @@ export async function runProtocol(page: TaPage): Promise<void> {
      the rehearsal did. Each step turns green as its own finish puts it
      back. */
   for (const id of [...walk, "gate", "protocol"]) { state.done.delete(id); state.stale.delete(id); }
+  /* A clean canvas for the run: the focus map stays, what earlier runs took goes. */
+  await page.backend.protocolBegan?.();
   const startedAt = performance.now();
   let ended = "finished";
   for (const id of PROTOCOL_STEPS) {

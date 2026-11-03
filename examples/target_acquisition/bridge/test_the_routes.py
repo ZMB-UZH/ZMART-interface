@@ -45,6 +45,7 @@ STAYED = [
     ("POST", "targets/acquire/landed"), ("POST", "targets/acquire/end"), ("GET", "targets/acquire"),
     ("POST", "targets/raise"),
     ("GET", "protocols"), ("POST", "protocols"), ("POST", "protocol"), ("POST", "protocol/save"),
+    ("POST", "protocol/begin"),
 ]
 
 #: The pictures, ``/view/<kind>/<name>``, now a prefix under the folder.
@@ -59,8 +60,8 @@ def the_table(monkeypatch):
     return set(server.ROUTES), set(server.PREFIX_ROUTES)
 
 
-def test_thirty_six_routes_and_the_pictures_are_on_the_map():
-    assert len(MOVED) + len(STAYED) == 36
+def test_thirty_seven_routes_and_the_pictures_are_on_the_map():
+    assert len(MOVED) + len(STAYED) == 37
 
 
 def test_every_route_answers_at_its_new_address_and_nothing_else_is_registered(monkeypatch):

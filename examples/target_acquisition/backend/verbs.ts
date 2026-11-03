@@ -288,6 +288,8 @@ export interface Backend {
   protocols(instrument?: string | null): Promise<WrittenProtocol[]>;
   saveProtocol(protocol: Record<string, unknown>): Promise<unknown>;
   saveProtocolAs(protocol: Record<string, unknown>, name: string): Promise<{ id: string }>;
+  /** The protocol run starts: the canvas keeps the focus map and shows nothing else of earlier runs. */
+  protocolBegan?(): Promise<unknown>;
   computePlot(how: { kind: string; ids?: unknown[] | null; onDoing?: Doing }): Promise<{
     stopped: boolean; columns: PlotColumns[]; objects?: number; seconds?: number;
   }>;

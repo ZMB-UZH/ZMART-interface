@@ -299,13 +299,27 @@ def begin_a_run(acquisition_type: str, *, settings=None) -> Path:
     """
     kind = output.checked_name(acquisition_type, field="acquisition_type")
     folder = output.start_a_run(state.the_run(), kind, settings=settings)
+    _stop_showing(kind)
+    return folder
+
+
+def a_protocol_began() -> dict:
+    """The protocol run starts on a clean canvas: nothing an earlier run took
+    is shown, but the focus map, which the run keeps when one was measured.
+    Each kind shows again as the run takes it; nothing leaves the disk."""
+    for kind in viewer_service.kinds() - {FOCUSSING}:
+        _stop_showing(kind)
+    return {}
+
+
+def _stop_showing(kind: str) -> None:
+    """Show nothing more of this kind's current run, here and on the canvas."""
     viewer_service.a_run_began(kind)
     state.shown_positions = {key: name for key, name in state.shown_positions.items() if key[0] != kind}
     for key in [key for key in state.displayed_pictures if key[0] == kind]:
         del state.displayed_pictures[key]
     with state.view_lock:
         state.view_built.pop(kind, None)
-    return folder
 
 
 def end_the_run(acquisition_type: str, *, stopped: bool = False, failed: bool = False) -> None:

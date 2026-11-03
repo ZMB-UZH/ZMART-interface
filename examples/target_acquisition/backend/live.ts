@@ -614,6 +614,10 @@ export const backend: Backend = {
     return ask<{ id: string }>(`${OURS}/protocol/save`, { protocol, name });
   },
 
+  async protocolBegan() {
+    return ask(`${OURS}/protocol/begin`, {});
+  },
+
   /**
    * A multidimensional plot of the detected population -- `pca` or `umap`
    * -- over the objects named by `ids`, or every candidate when left out.

@@ -320,6 +320,13 @@ def a_run_began(acquisition_type: str) -> None:
         _viewer["acquisitions"] = [one for one in _viewer["acquisitions"] if one["name"] != acquisition_type]
 
 
+def kinds() -> set[str]:
+    """The kinds of acquisition the canvas shows or is taking now."""
+    with _the_turn:
+        return ({one["name"] for one in _viewer["acquisitions"]}
+                | set(_viewer.get("folder_types", {}).values()))
+
+
 def forget_a_store(acquisition_type: str, name: str) -> None:
     """Stop showing one position of this kind, without touching it on disk.
 
